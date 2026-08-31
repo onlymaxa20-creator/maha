@@ -101,6 +101,10 @@ import com.example.ui.components.AppProductImage
 import com.example.ui.components.EmptyStateView
 import com.example.ui.components.Formatters
 import com.example.ui.components.OrderStatusBadge
+import com.example.ui.components.CategoryAttributeEditor
+import com.example.ui.components.buildCombinedDescription
+import com.example.ui.components.getCategoryAttributeGroup
+import com.example.ui.components.parseCategorySpecs
 import com.example.ui.theme.BorderColor
 import com.example.ui.theme.CardSurface
 import com.example.ui.theme.DangerRed
@@ -866,11 +870,21 @@ fun AddEditProductDialog(
         isAvailable: Boolean
     ) -> Unit
 ) {
+    val initialSpecs = remember(product) { parseCategorySpecs(product?.description ?: "") }
     var name by remember { mutableStateOf(product?.name ?: "") }
-    var desc by remember { mutableStateOf(product?.description ?: "") }
+    var desc by remember { mutableStateOf(initialSpecs.cleanDescription) }
+    var selectedSizes by remember { mutableStateOf(initialSpecs.sizes) }
+    var selectedColors by remember { mutableStateOf(initialSpecs.colors) }
+    var selectedMaterial by remember { mutableStateOf(initialSpecs.material ?: "") }
+    var selectedExtra by remember { mutableStateOf(initialSpecs.extra ?: "") }
+
     var priceText by remember { mutableStateOf(if (product != null) "${product.price.toLong()}" else "") }
     var stockText by remember { mutableStateOf(if (product != null) "${product.stock}" else "10") }
-    var unit by remember { mutableStateOf(product?.unit ?: "dona") }
+    var unit by remember {
+        mutableStateOf(
+            product?.unit ?: categories.firstOrNull()?.let { getCategoryAttributeGroup(it.name).defaultUnit } ?: "dona"
+        )
+    }
     var imageUri by remember { mutableStateOf(product?.imageUri ?: "") }
     var isAvailable by remember { mutableStateOf(product?.isAvailable ?: true) }
 
@@ -920,7 +934,7 @@ fun AddEditProductDialog(
                         errorText = null
                     },
                     label = { Text("Mahsulot nomi *") },
-                    placeholder = { Text("Masalan: Samarqand noni") },
+                    placeholder = { Text("Masalan: Samarqand noni yoki Erkaklar krossovkasi") },
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -958,11 +972,31 @@ fun AddEditProductDialog(
                                     selectedCategoryId = cat.id
                                     selectedCategoryName = cat.name
                                     showCategoryDropdown = false
+                                    if (product == null) {
+                                        unit = getCategoryAttributeGroup(cat.name).defaultUnit
+                                    }
                                 }
                             )
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Category-specific attribute customizer
+                CategoryAttributeEditor(
+                    categoryName = selectedCategoryName,
+                    currentUnit = unit,
+                    onUnitChange = { unit = it },
+                    selectedSizes = selectedSizes,
+                    onSizesChange = { selectedSizes = it },
+                    selectedColors = selectedColors,
+                    onColorsChange = { selectedColors = it },
+                    selectedMaterial = selectedMaterial,
+                    onMaterialChange = { selectedMaterial = it },
+                    selectedExtra = selectedExtra,
+                    onExtraChange = { selectedExtra = it }
+                )
 
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -988,7 +1022,7 @@ fun AddEditProductDialog(
                         value = unit,
                         onValueChange = { unit = it },
                         label = { Text("Birligi") },
-                        placeholder = { Text("dona / kg / litr") },
+                        placeholder = { Text("dona / kg / juft") },
                         singleLine = true,
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.weight(1f)
@@ -1004,7 +1038,7 @@ fun AddEditProductDialog(
                         stockText = it.filter { char -> char.isDigit() }
                         errorText = null
                     },
-                    label = { Text("Mavjud soni (ombor qoldig‘i) *") },
+                    label = { Text("Mavjud miqdor ($unit hisobida) *") },
                     placeholder = { Text("10") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -1145,6 +1179,7 @@ fun AddEditProductDialog(
                             "Shirinliklar" to "https://images.unsplash.com/photo-1587314168485-3236d6710814?w=600&auto=format&fit=crop&q=80",
                             "Guruch / Don" to "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=600&auto=format&fit=crop&q=80",
                             "Kiyim-kechak" to "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=600&auto=format&fit=crop&q=80",
+                            "Poyabzal" to "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&auto=format&fit=crop&q=80",
                             "Telefon / Gadjet" to "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80",
                             "Tozalik vositasi" to "https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=600&auto=format&fit=crop&q=80"
                         )
@@ -1188,8 +1223,8 @@ fun AddEditProductDialog(
                 OutlinedTextField(
                     value = desc,
                     onValueChange = { desc = it },
-                    label = { Text("Mahsulot tavsifi") },
-                    placeholder = { Text("Sifatli, yangi...") },
+                    label = { Text("Qo‘shimcha tavsif (ixtiyoriy)") },
+                    placeholder = { Text("Mahsulot haqida batafsil ma’lumot...") },
                     shape = RoundedCornerShape(10.dp),
                     maxLines = 3,
                     modifier = Modifier.fillMaxWidth()
@@ -1230,9 +1265,16 @@ fun AddEditProductDialog(
                     } else if (stockVal < 0) {
                         errorText = "Mavjud soni manfiy bo‘lishi mumkin emas"
                     } else {
+                        val combinedDescription = buildCombinedDescription(
+                            cleanDesc = desc.trim(),
+                            selectedSizes = selectedSizes,
+                            selectedColors = selectedColors,
+                            selectedMaterial = selectedMaterial,
+                            selectedExtra = selectedExtra
+                        )
                         onSave(
                             name.trim(),
-                            desc.trim(),
+                            combinedDescription,
                             selectedCategoryId,
                             selectedCategoryName,
                             priceVal,

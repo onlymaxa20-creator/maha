@@ -75,6 +75,10 @@ import android.content.Intent
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Share
+import com.example.ui.components.CategoryAttributeGroup
+import com.example.ui.components.ProductSpecsCardView
+import com.example.ui.components.ProductVariantSelectorView
+import com.example.ui.components.parseCategorySpecs
 import com.example.ui.components.RecommendationSection
 import com.example.ui.components.ReviewCardItem
 import com.example.ui.components.StarGold
@@ -113,6 +117,11 @@ fun ProductDetailScreen(
     val isFavorite = favoriteProducts.any { it.id == product.id }
     val favIds = remember(favoriteProducts) { favoriteProducts.map { it.id }.toSet() }
     val reviews by storeViewModel.getReviewsForProduct(product.id).collectAsState(initial = emptyList())
+
+    // Category-specific specifications and variants
+    val specs = remember(product.description) { parseCategorySpecs(product.description) }
+    var selectedSize by remember(specs) { mutableStateOf(specs.sizes.firstOrNull()) }
+    var selectedColor by remember(specs) { mutableStateOf(specs.colors.firstOrNull()) }
 
     // Recommendation flows
     val similarProducts by storeViewModel.getSimilarProducts(product.id).collectAsState(initial = emptyList())
@@ -239,7 +248,17 @@ fun ProductDetailScreen(
                         onClick = {
                             storeViewModel.addToCart(product.id, quantity) { success, msg ->
                                 coroutineScope.launch {
-                                    snackbarHostState.showSnackbar(msg)
+                                    val variantNote = listOfNotNull(
+                                        selectedSize?.let { "O‘lcham: $it" },
+                                        selectedColor?.let { "Rang: $it" }
+                                    ).joinToString(", ")
+
+                                    val finalMsg = if (variantNote.isNotBlank() && success) {
+                                        "${product.name} ($variantNote) savatga qo‘shildi"
+                                    } else {
+                                        msg
+                                    }
+                                    snackbarHostState.showSnackbar(finalMsg)
                                 }
                             }
                         },
@@ -405,6 +424,19 @@ fun ProductDetailScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Category-specific Variant Selector (e.g. shoe sizes, clothes sizes, food weights, colors)
+                if (specs.sizes.isNotEmpty() || specs.colors.isNotEmpty()) {
+                    ProductVariantSelectorView(
+                        specs = specs,
+                        unit = product.unit,
+                        selectedSize = selectedSize,
+                        onSizeSelect = { selectedSize = it },
+                        selectedColor = selectedColor,
+                        onColorSelect = { selectedColor = it }
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
                 // Quantity selector
                 if (product.stock > 0) {
                     Card(
@@ -471,6 +503,15 @@ fun ProductDetailScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Category-specific specs card
+                if (specs.material != null || specs.extra != null || specs.sizes.isNotEmpty() || specs.colors.isNotEmpty()) {
+                    ProductSpecsCardView(
+                        specs = specs,
+                        categoryName = product.categoryName
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
                 // Delivery Perks in Gagarin
                 Card(
                     shape = RoundedCornerShape(12.dp),
@@ -514,8 +555,15 @@ fun ProductDetailScreen(
                     color = DarkText
                 )
                 Spacer(modifier = Modifier.height(6.dp))
+                val displayDescription = if (specs.cleanDescription.isNotBlank()) {
+                    specs.cleanDescription
+                } else if (product.description.isNotBlank()) {
+                    product.description
+                } else {
+                    "Ushbu mahsulot uchun qo‘shimcha tavsif kiritilmagan."
+                }
                 Text(
-                    text = if (product.description.isNotBlank()) product.description else "Ushbu mahsulot uchun qo‘shimcha tavsif kiritilmagan.",
+                    text = displayDescription,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Normal
