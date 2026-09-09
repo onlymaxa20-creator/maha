@@ -1134,9 +1134,11 @@ fun AddEditProductDialog(
                 if (imageUri.isNotBlank()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = if (imageUri.startsWith("file://")) "✅ Qurilma xotirasidan rasm biriktirildi (Oflayn ishlaydi)" else "🔗 Rasm havolasi biriktirilgan",
+                        text = if (imageUri.startsWith("data:image")) "✅ Rasm bulutga (barcha xaridorlarga) onlayn sinxronlanadi"
+                        else if (imageUri.startsWith("http")) "🌐 Internet / Google rasm havolasi biriktirildi"
+                        else "✅ Rasm muvaffaqiyatli biriktirildi",
                         fontSize = 11.sp,
-                        color = if (imageUri.startsWith("file://")) SuccessGreen else PrimaryBlue,
+                        color = SuccessGreen,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -1214,6 +1216,13 @@ fun AddEditProductDialog(
                         singleLine = true,
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "💡 Maslahat: URL linkni Google Rasmlar, Telegram yoki imgbb.com dan «Rasm havolasidan nusxa olish» orqali kiritishingiz mumkin.",
+                        fontSize = 10.sp,
+                        color = SlateGray,
+                        lineHeight = 14.sp
                     )
                 }
 

@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 enum class EcosystemTab {
+    HOME_HUB,
     BOZOR,
     FOOD,
     JOBS,
@@ -43,7 +44,7 @@ class EcosystemViewModel(
     }
 
     // Active SuperApp Tab
-    private val _currentTab = MutableStateFlow(EcosystemTab.BOZOR)
+    private val _currentTab = MutableStateFlow(EcosystemTab.HOME_HUB)
     val currentTab: StateFlow<EcosystemTab> = _currentTab.asStateFlow()
     private val tabHistory = mutableListOf<EcosystemTab>()
 
@@ -59,8 +60,8 @@ class EcosystemViewModel(
             val prev = tabHistory.removeAt(tabHistory.size - 1)
             _currentTab.value = prev
             return true
-        } else if (_currentTab.value != EcosystemTab.BOZOR) {
-            _currentTab.value = EcosystemTab.BOZOR
+        } else if (_currentTab.value != EcosystemTab.HOME_HUB) {
+            _currentTab.value = EcosystemTab.HOME_HUB
             return true
         }
         return false
@@ -119,6 +120,10 @@ class EcosystemViewModel(
         _selectedTaxiTariff.value = tariff
     }
 
+    fun setTaxiTariff(tariff: String) {
+        selectTariff(tariff)
+    }
+
     fun requestTaxi(
         userId: Long,
         passengerName: String,
@@ -157,6 +162,10 @@ class EcosystemViewModel(
         viewModelScope.launch {
             ecosystemRepository.cancelTaxiRide(rideId)
         }
+    }
+
+    fun cancelTaxi(rideId: Long) {
+        cancelActiveRide(rideId)
     }
 
     fun completeRide(rideId: Long) {

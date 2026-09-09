@@ -318,6 +318,67 @@ class OrderRepository(
         return Result.success(Unit)
     }
 
+    /**
+     * Customer cancels an order before it reaches "Yetkazilmoqda".
+     * Rule: Order can be cancelled while status is "Yangi" or "Tayyorlanmoqda".
+     * Once it is "Yetkazilmoqda" (courier on the way), it CANNOT be cancelled.
+     * Both customer and sellers receive real-time notifications.
+     */
+    suspend fun cancelOrderByCustomer(orderId: Long, reason: String = "Mijoz tomonidan bekor qilindi"): Result<Unit> {
+        val order = orderDao.getOrderByIdDirect(orderId)
+            ?: return Result.failure(IllegalArgumentException("Buyurtma topilmadi"))
+
+        val statusClean = order.status.trim()
+        if (statusClean.equals("Yetkazilmoqda", ignoreCase = true)) {
+            return Result.failure(IllegalStateException("Buyurtma allaqachon yo‘lga chiqqan (yetkazilmoqda). Kuryer yetib bormoqda, shuning uchun bekor qilib bo‘lmaydi."))
+        }
+        if (statusClean.equals("Yetkazildi", ignoreCase = true)) {
+            return Result.failure(IllegalStateException("Buyurtma allaqachon yetkazib berilgan."))
+        }
+        if (statusClean.equals("Bekor qilindi", ignoreCase = true)) {
+            return Result.failure(IllegalStateException("Ushbu buyurtma allaqachon bekor qilingan."))
+        }
+
+        // Restore product stock in database
+        val items = orderDao.getOrderItemsDirect(orderId)
+        for (item in items) {
+            try {
+                productDao.increaseStock(item.productId, item.quantity)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not restore stock for product ${item.productId}: ${e.message}")
+            }
+        }
+
+        // Update local Room database
+        orderDao.updateOrderStatus(orderId, "Bekor qilindi")
+
+        // Sync to Firestore
+        try {
+            firestoreSyncService.updateOrderStatus(orderId, "Bekor qilindi")
+        } catch (e: Exception) {
+            Log.w(TAG, "Order cancel status updated locally; Firestore sync notice: ${e.message}")
+        }
+
+        val orderNum = order.orderNumber
+
+        // 1. Notification for customer (confirmation)
+        com.example.data.util.NotificationHelper.showNotification(
+            title = "❌ Buyurtmangiz bekor qilindi",
+            message = "Sizning #$orderNum raqamli buyurtmangiz muvaffaqiyatli bekor qilindi.",
+            targetRole = "CUSTOMER",
+            targetUserId = order.customerId
+        )
+
+        // 2. Notification for sellers
+        com.example.data.util.NotificationHelper.showNotification(
+            title = "⚠️ Buyurtma bekor qilindi",
+            message = "Buyurtma #$orderNum (${order.customerName}) xaridor tomonidan bekor qilindi.",
+            targetRole = "SELLER"
+        )
+
+        return Result.success(Unit)
+    }
+
     fun getAdminStats(): Flow<AdminDashboardStats> {
         return combine(
             userDao.getCustomersCount(),

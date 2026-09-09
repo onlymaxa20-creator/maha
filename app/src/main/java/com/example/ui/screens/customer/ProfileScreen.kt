@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
@@ -49,6 +51,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -126,6 +129,7 @@ fun ProfileScreen(
     onNavigateToAuth: () -> Unit,
     onNavigateToSeller: () -> Unit,
     onNavigateToAdmin: () -> Unit,
+    initialTab: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val session by authViewModel.session.collectAsState()
@@ -135,11 +139,16 @@ fun ProfileScreen(
     val authError by authViewModel.authError.collectAsState()
     val authSuccess by authViewModel.authSuccessMessage.collectAsState()
 
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
     var selectedOrderCategoryTab by remember { mutableIntStateOf(0) } // 0: Bozor, 1: Gagarin Taomlar
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var showManualUpdateDialog by remember { mutableStateOf(false) }
+
+    // Cancellation states
+    var orderToCancel by remember { mutableStateOf<OrderDetail?>(null) }
+    var foodOrderToCancel by remember { mutableStateOf<FoodOrderEntity?>(null) }
+    var isCancelling by remember { mutableStateOf(false) }
 
     LaunchedEffect(session.user?.id) {
         storeViewModel.setCustomerId(session.user?.id)
@@ -404,7 +413,153 @@ fun ProfileScreen(
     if (selectedOrderDetail != null) {
         CustomerOrderDetailDialog(
             orderDetail = selectedOrderDetail!!,
-            onDismiss = { selectedOrderDetail = null }
+            onDismiss = { selectedOrderDetail = null },
+            onCancelOrder = {
+                orderToCancel = selectedOrderDetail
+            }
+        )
+    }
+
+    // Market Order Cancel Dialog
+    if (orderToCancel != null) {
+        val o = orderToCancel!!
+        AlertDialog(
+            onDismissRequest = { if (!isCancelling) orderToCancel = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = null,
+                    tint = DangerRed,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Buyurtmani bekor qilish",
+                    fontWeight = FontWeight.Bold,
+                    color = SecondaryNavy
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Haqiqatan ham #${o.order.orderNumber} raqamli buyurtmani bekor qilmoqchimisiz?",
+                        fontSize = 14.sp,
+                        color = SecondaryNavy
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "💡 Eslatma: Kuryer yetkazishni boshlaguncha («Yetkazilmoqda» holatiga qadar) bekor qilish mumkin.",
+                        fontSize = 12.sp,
+                        color = SlateGray
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isCancelling = true
+                            storeViewModel.cancelOrder(o.order.id) { success, msg ->
+                                isCancelling = false
+                                orderToCancel = null
+                                selectedOrderDetail = null
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(msg)
+                                }
+                            }
+                        }
+                    },
+                    enabled = !isCancelling,
+                    colors = ButtonDefaults.buttonColors(containerColor = DangerRed)
+                ) {
+                    if (isCancelling) {
+                        CircularProgressIndicator(color = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Ha, bekor qilish", fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { orderToCancel = null },
+                    enabled = !isCancelling
+                ) {
+                    Text("Yo‘q, qolsin")
+                }
+            },
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    // Food Order Cancel Dialog
+    if (foodOrderToCancel != null) {
+        val fo = foodOrderToCancel!!
+        AlertDialog(
+            onDismissRequest = { if (!isCancelling) foodOrderToCancel = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = null,
+                    tint = DangerRed,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Taom buyurtmasini bekor qilish",
+                    fontWeight = FontWeight.Bold,
+                    color = SecondaryNavy
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Haqiqatan ham #${fo.id} raqamli (${fo.restaurantName}) taom buyurtmangizni bekor qilmoqchimisiz?",
+                        fontSize = 14.sp,
+                        color = SecondaryNavy
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "💡 Eslatma: Taom kuryerga topshirilib «Yetkazilmoqda» holatiga o‘tguncha bekor qilish mumkin.",
+                        fontSize = 12.sp,
+                        color = SlateGray
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isCancelling = true
+                            foodStoreViewModel?.cancelFoodOrder(fo.id) { success, msg ->
+                                isCancelling = false
+                                foodOrderToCancel = null
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(msg)
+                                }
+                            }
+                        }
+                    },
+                    enabled = !isCancelling,
+                    colors = ButtonDefaults.buttonColors(containerColor = DangerRed)
+                ) {
+                    if (isCancelling) {
+                        CircularProgressIndicator(color = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Ha, bekor qilish", fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { foodOrderToCancel = null },
+                    enabled = !isCancelling
+                ) {
+                    Text("Yo‘q, qolsin")
+                }
+            },
+            shape = RoundedCornerShape(16.dp)
         )
     }
 
@@ -763,7 +918,10 @@ fun ProfileScreen(
                                 orders.forEach { orderDetail ->
                                     CustomerOrderCard(
                                         orderDetail = orderDetail,
-                                        onClick = { selectedOrderDetail = orderDetail }
+                                        onClick = { selectedOrderDetail = orderDetail },
+                                        onCancelClick = {
+                                            orderToCancel = orderDetail
+                                        }
                                     )
                                 }
                             }
@@ -784,7 +942,12 @@ fun ProfileScreen(
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 foodOrders.forEach { foodOrder ->
-                                    CustomerFoodOrderCard(foodOrder = foodOrder)
+                                    CustomerFoodOrderCard(
+                                        foodOrder = foodOrder,
+                                        onCancelClick = {
+                                            foodOrderToCancel = foodOrder
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -822,9 +985,14 @@ fun ProfileInfoRow(
 fun CustomerOrderCard(
     orderDetail: OrderDetail,
     onClick: () -> Unit,
+    onCancelClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val order = orderDetail.order
+    val isCancellable = order.status.equals("Yangi", ignoreCase = true) ||
+            order.status.equals("Tayyorlanmoqda", ignoreCase = true)
+    val isDelivering = order.status.equals("Yetkazilmoqda", ignoreCase = true)
+
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
@@ -883,6 +1051,55 @@ fun CustomerOrderCard(
                     fontWeight = FontWeight.Bold,
                     color = PrimaryBlue
                 )
+            }
+
+            // Cancellation option or Non-cancellable explanation
+            if (isCancellable && onCancelClick != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "⏳ Bekor qilish mumkin",
+                        fontSize = 11.sp,
+                        color = SlateGray
+                    )
+                    OutlinedButton(
+                        onClick = onCancelClick,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, DangerRed),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = DangerRed),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Bekor qilish", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            } else if (isDelivering) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    color = androidx.compose.ui.graphics.Color(0xFFE8F5E9),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🛵", fontSize = 14.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Kuryer yo‘lda (Yetkazilmoqda) • Bekor qilib bo‘lmaydi",
+                            fontSize = 11.sp,
+                            color = androidx.compose.ui.graphics.Color(0xFF2E7D32),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
             }
         }
     }
@@ -955,6 +1172,7 @@ fun FoodOrderStatusStepper(currentStep: Int) {
 @Composable
 fun CustomerFoodOrderCard(
     foodOrder: FoodOrderEntity,
+    onCancelClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val formatter = remember { NumberFormat.getNumberInstance(Locale("uz", "UZ")) }
@@ -1149,6 +1367,58 @@ fun CustomerFoodOrderCard(
                     color = OrangeAmber
                 )
             }
+
+            // Food Order Cancellation
+            val isFoodCancellable = foodOrder.status in listOf("YANGI", "QABUL_QILINDI", "TAYYORLANMOQDA", "TAYYOR")
+            val isFoodDelivering = foodOrder.status == "YETKAZILMOQDA"
+
+            if (isFoodCancellable && onCancelClick != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "⏳ Kuryer yo‘lga chiqquncha bekor qilish mumkin",
+                        fontSize = 11.sp,
+                        color = SlateGray
+                    )
+                    OutlinedButton(
+                        onClick = onCancelClick,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, DangerRed),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = DangerRed),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Bekor qilish", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            } else if (isFoodDelivering) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    color = androidx.compose.ui.graphics.Color(0xFFE8F5E9),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🛵", fontSize = 14.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Kuryer yo‘lda (Yetkazilmoqda) • Bekor qilib bo‘lmaydi",
+                            fontSize = 11.sp,
+                            color = androidx.compose.ui.graphics.Color(0xFF2E7D32),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -1156,9 +1426,14 @@ fun CustomerFoodOrderCard(
 @Composable
 fun CustomerOrderDetailDialog(
     orderDetail: OrderDetail,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onCancelOrder: (() -> Unit)? = null
 ) {
     val order = orderDetail.order
+    val isCancellable = order.status.equals("Yangi", ignoreCase = true) ||
+            order.status.equals("Tayyorlanmoqda", ignoreCase = true)
+    val isDelivering = order.status.equals("Yetkazilmoqda", ignoreCase = true)
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -1188,6 +1463,50 @@ fun CustomerOrderDetailDialog(
                 ) {
                     Text(text = "Holati:", fontSize = 13.sp, color = SlateGray)
                     OrderStatusBadge(status = order.status)
+                }
+
+                if (isDelivering) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        color = androidx.compose.ui.graphics.Color(0xFFE8F5E9),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("🛵", fontSize = 16.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Kuryer buyurtmangizni yetkazmoqda. Kuryer yo‘lga chiqqanligi sababli ushbu bosqichda bekor qilib bo‘lmaydi.",
+                                fontSize = 12.sp,
+                                color = androidx.compose.ui.graphics.Color(0xFF2E7D32),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                } else if (isCancellable) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        color = androidx.compose.ui.graphics.Color(0xFFFFF8E1),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("⏳", fontSize = 16.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Buyurtmangiz tayyorlanmoqda. Kuryer yo‘lga chiqquncha bekor qilish imkoniyati mavjud.",
+                                fontSize = 12.sp,
+                                color = androidx.compose.ui.graphics.Color(0xFFE65100),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -1293,11 +1612,28 @@ fun CustomerOrderDetailDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Yopish")
+                if (isCancellable && onCancelOrder != null) {
+                    OutlinedButton(
+                        onClick = onCancelOrder,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, DangerRed),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = DangerRed),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Bekor qilish", color = DangerRed, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                ) {
+                    Text("Yopish")
+                }
             }
         },
         shape = RoundedCornerShape(16.dp)

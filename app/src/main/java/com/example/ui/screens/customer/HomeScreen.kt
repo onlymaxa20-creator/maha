@@ -1,14 +1,18 @@
 package com.example.ui.screens.customer
 
 import android.app.Activity
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,6 +37,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -41,7 +46,13 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.LocationOff
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.outlined.ThumbUp
@@ -70,6 +81,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -84,6 +96,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -92,6 +105,7 @@ import coil.compose.SubcomposeAsyncImage
 import com.example.data.local.entity.ProductEntity
 import com.example.data.local.entity.PromoBannerEntity
 import com.example.data.util.ImageStorageHelper
+import com.example.data.util.UserLocationManager
 import com.example.ui.components.CategoryChip
 import com.example.ui.components.EcosystemHubBar
 import com.example.ui.components.EmptyStateView
@@ -140,6 +154,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val searchQuery by storeViewModel.searchQuery.collectAsState()
+    val searchResultState by storeViewModel.searchResultState.collectAsState()
     val categories by storeViewModel.categories.collectAsState()
     val selectedCategory by storeViewModel.selectedCategoryId.collectAsState()
     val products by storeViewModel.products.collectAsState()
@@ -152,11 +167,55 @@ fun HomeScreen(
     val session by authViewModel.session.collectAsState()
     val currentTab by ecosystemViewModel.currentTab.collectAsState()
     val classifiedAds by ecosystemViewModel.ads.collectAsState()
+    val foodProducts by foodStoreViewModel.displayedProducts.collectAsState()
 
     val context = LocalContext.current
     val favIds = favoriteProducts.map { it.id }.toSet()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+
+    val locationMgr = remember { UserLocationManager(context) }
+    val currentAddress by locationMgr.currentAddress.collectAsState()
+    val isGpsEnabled by locationMgr.isGpsEnabled.collectAsState()
+    val isLocating by locationMgr.isLocating.collectAsState()
+    val coordinates by locationMgr.coordinates.collectAsState()
+    var showLocationEditDialog by remember { mutableStateOf(false) }
+    var showGpsPromptDialog by remember { mutableStateOf(false) }
+    var manualLocationInput by remember { mutableStateOf("") }
+
+    DisposableEffect(locationMgr) {
+        locationMgr.startMonitoring()
+        onDispose {
+            locationMgr.stopMonitoring()
+        }
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            coroutineScope.launch {
+                locationMgr.fetchCurrentLocation(forceHighAccuracy = true)
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (locationMgr.hasLocationPermission()) {
+            if (locationMgr.checkGpsState()) {
+                locationMgr.fetchCurrentLocation(forceHighAccuracy = true)
+            }
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
 
     var showPortalSelector by remember { mutableStateOf(false) }
     var selectedBannerDetails by remember { mutableStateOf<PromoBannerEntity?>(null) }
@@ -173,7 +232,7 @@ fun HomeScreen(
         } else if (selectedCategory != null) {
             storeViewModel.selectCategory(null)
         } else if (ecosystemViewModel.popTab()) {
-            // Popped tab from history (e.g. from services/jobs/ads/taxi/food back to bozor)
+            // Popped tab from history (e.g. from services/jobs/ads/taxi/food back to home hub)
         } else {
             val currentTime = System.currentTimeMillis()
             if (currentTime - lastBackPressedTime < 2000) {
@@ -193,136 +252,222 @@ fun HomeScreen(
 
     Box(modifier = modifier.fillMaxSize().background(LightBackground)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1. TOP HEADER & BRANDING
-            Surface(
-                color = CardSurface,
-                shadowElevation = 1.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+            // 1. TOP HEADER & BRANDING (Only shown on Home Hub and Bozor; other modules have their own dedicated TopAppBar)
+            if (currentTab == EcosystemTab.HOME_HUB || currentTab == EcosystemTab.BOZOR) {
+                Surface(
+                    color = CardSurface,
+                    shadowElevation = 1.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Left: Back button (if in Bozor) or Hamburger Menu (Opens Admin & Seller portal switcher)
+                            IconButton(
+                                onClick = {
+                                    if (currentTab == EcosystemTab.BOZOR) {
+                                        ecosystemViewModel.setTab(EcosystemTab.HOME_HUB)
+                                    } else {
+                                        showPortalSelector = true
+                                    }
+                                },
+                                modifier = Modifier.testTag("brand_portal_trigger")
+                            ) {
+                                Icon(
+                                    imageVector = if (currentTab == EcosystemTab.BOZOR) Icons.AutoMirrored.Filled.ArrowBack else Icons.Filled.Menu,
+                                    contentDescription = if (currentTab == EcosystemTab.BOZOR) "Orqaga" else "Menyu",
+                                    tint = DarkText,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
+
+                        // Center: Gagarin Go logo typography
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
-                                .weight(1f, fill = false)
+                                .clip(RoundedCornerShape(8.dp))
                                 .clickable { showPortalSelector = true }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            GagarinGoLogo(size = 34.dp, tint = PrimaryBurgundy)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Column {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                ) {
-                                    Text(
-                                        text = "GAGARIN",
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 16.sp,
-                                        color = DarkText,
-                                        letterSpacing = 0.3.sp,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        text = "GO",
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 17.sp,
-                                        color = PrimaryBurgundy,
-                                        letterSpacing = 0.3.sp,
-                                        maxLines = 1
-                                    )
+                            Text(
+                                text = "Gagarin",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 23.sp,
+                                color = Color(0xFF1F1F1F),
+                                letterSpacing = (-0.5).sp
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "Go",
+                                fontWeight = FontWeight.Black,
+                                fontStyle = FontStyle.Italic,
+                                fontSize = 23.sp,
+                                color = PrimaryBurgundy,
+                                letterSpacing = (-0.5).sp
+                            )
+                        }
+
+                        // Right: Plus badge button
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = PrimaryBurgundy,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable {
+                                    Toast.makeText(context, "Gagarin Go Plus xizmati tez orada ishga tushadi!", Toast.LENGTH_SHORT).show()
                                 }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Star,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Mirzacho‘l Savdo",
-                                    fontSize = 10.5.sp,
-                                    color = SecondaryText,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1
+                                    text = "Plus",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
                                 )
                             }
                         }
+                    }
 
-                        Spacer(modifier = Modifier.width(6.dp))
-
-                        // Right Action Buttons: Prominent Sotuvchi and Admin portal buttons
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = PrimaryBurgundyLight,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable { onNavigateToSellerAuth() }
-                                    .testTag("portal_seller_btn")
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                    // User Location Display Header directly below "Gagarin Go"
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        when {
+                            !isGpsEnabled -> {
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = Color(0xFFFFF7ED),
+                                    border = BorderStroke(1.dp, Color(0xFFFDBA74)),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .clickable { showGpsPromptDialog = true }
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Storefront,
-                                        contentDescription = "Sotuvchi",
-                                        tint = PrimaryBurgundy,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = "Sotuvchi",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = PrimaryBurgundy,
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.LocationOff,
+                                            contentDescription = null,
+                                            tint = Color(0xFFC2410C),
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text(
+                                            text = "GPS o‘chirilgan • Yoqish",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFC2410C)
+                                        )
+                                    }
                                 }
                             }
-
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = Color(0xFFEDE9FE),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable { onNavigateToAdminAuth() }
-                                    .testTag("portal_admin_btn")
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                            isLocating -> {
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = Color(0xFFFDF2F4),
+                                    border = BorderStroke(1.dp, PrimaryBurgundy.copy(alpha = 0.25f)),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .clickable {
+                                            manualLocationInput = currentAddress
+                                            showLocationEditDialog = true
+                                        }
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.AdminPanelSettings,
-                                        contentDescription = "Admin",
-                                        tint = Color(0xFF6D28D9),
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = "Admin",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF6D28D9),
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        CircularProgressIndicator(
+                                            strokeWidth = 2.dp,
+                                            color = PrimaryBurgundy,
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "GPS orqali aniqlanmoqda...",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = PrimaryBurgundy
+                                        )
+                                    }
+                                }
+                            }
+                            else -> {
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = Color(0xFFF9FAFB),
+                                    border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .clickable {
+                                            manualLocationInput = currentAddress
+                                            showLocationEditDialog = true
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .background(Color(0xFF22C55E), shape = CircleShape)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Icon(
+                                            imageVector = Icons.Filled.LocationOn,
+                                            contentDescription = null,
+                                            tint = PrimaryBurgundy,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = currentAddress,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = DarkText,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(
+                                            imageVector = Icons.Filled.KeyboardArrowDown,
+                                            contentDescription = "Manzilni tanlash",
+                                            tint = SecondaryText,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    // Search input on Bozor
-                    if (currentTab == EcosystemTab.BOZOR) {
-                        Spacer(modifier = Modifier.height(10.dp))
+                    // Search input with AI semantic indicator
+                    if (currentTab == EcosystemTab.HOME_HUB || currentTab == EcosystemTab.BOZOR) {
+                        Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { storeViewModel.setSearchQuery(it) },
                             placeholder = {
                                 Text(
-                                    text = "Mahsulot, ish, usta yoki e’lon qidiring",
+                                    text = "Aqlli qidiruv: mahsulot, sheva yoki brend...",
                                     color = SlateGray,
                                     fontSize = 13.sp
                                 )
@@ -336,13 +481,24 @@ fun HomeScreen(
                                 )
                             },
                             trailingIcon = {
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { storeViewModel.setSearchQuery("") }) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { storeViewModel.setSearchQuery("") }) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Close,
+                                                contentDescription = "Tozalash",
+                                                tint = SlateGray,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    } else {
                                         Icon(
-                                            imageVector = Icons.Filled.Close,
-                                            contentDescription = "Tozalash",
-                                            tint = SlateGray,
-                                            modifier = Modifier.size(18.dp)
+                                            imageVector = Icons.Filled.AutoAwesome,
+                                            contentDescription = "AI Qidiruv",
+                                            tint = PrimaryBurgundy,
+                                            modifier = Modifier
+                                                .padding(end = 12.dp)
+                                                .size(18.dp)
                                         )
                                     }
                                 }
@@ -360,18 +516,58 @@ fun HomeScreen(
                                 .height(50.dp)
                                 .testTag("home_search_input")
                         )
+
+                        // "Shuni nazarda tutdingizmi?" (Did you mean?) AI taklifi
+                        searchResultState?.didYouMean?.let { suggestion ->
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFFEF3C7),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFDE68A)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { storeViewModel.applyDidYouMean() }
+                                    .testTag("did_you_mean_chip")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.AutoAwesome,
+                                        contentDescription = null,
+                                        tint = Color(0xFFD97706),
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Shuni nazarda tutdingizmi: ",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF92400E)
+                                    )
+                                    Text(
+                                        text = suggestion,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = PrimaryBurgundy
+                                    )
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Text(
+                                        text = "Tanlash",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFD97706)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
+        }
 
-            // 2. ECOSYSTEM MODULES BAR (BOZOR, FOOD, ADS, SERVICES, JOBS)
-            EcosystemHubBar(
-                currentTab = currentTab,
-                onTabSelected = { tab -> ecosystemViewModel.setTab(tab) },
-                modifier = Modifier.testTag("ecosystem_hub_bar")
-            )
-
-            // 3. TAB CONTENT
+            // 2. TAB CONTENT
             AnimatedContent(
                 targetState = currentTab,
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -379,7 +575,46 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxSize().weight(1f)
             ) { tab ->
                 when (tab) {
+                    EcosystemTab.HOME_HUB -> {
+                        SuperAppHomeHub(
+                            products = products,
+                            foodProducts = foodProducts,
+                            favoriteProductIds = favIds,
+                            promoBanners = promoBanners,
+                            onProductClick = onProductClick,
+                            onAddToCart = { prod ->
+                                storeViewModel.addToCart(prod.id, 1)
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("${prod.name} savatga qo‘shildi")
+                                }
+                            },
+                            onToggleFavorite = { prod -> storeViewModel.toggleFavorite(prod.id) },
+                            onAddFoodToCart = { food ->
+                                foodStoreViewModel.addToCart(food)
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("${food.name} taom savatiga qo‘shildi")
+                                }
+                            },
+                            onNavigateToTab = { targetTab ->
+                                ecosystemViewModel.setTab(targetTab)
+                            },
+                            onPlusClick = {
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("Yaqin orada bu xizmat qo‘shiladi")
+                                }
+                            }
+                        )
+                    }
+
                     EcosystemTab.BOZOR -> {
+                        val bozorBanners = remember(promoBanners) {
+                            promoBanners.filter {
+                                it.actionTag.isBlank() ||
+                                it.actionTag.equals("ALL", ignoreCase = true) ||
+                                it.actionTag.equals("BOZOR", ignoreCase = true)
+                            }
+                        }
+
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(2),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
@@ -389,11 +624,11 @@ fun HomeScreen(
                                 .fillMaxSize()
                                 .testTag("home_products_grid")
                         ) {
-                            // 3A. PROMO BANNERS CAROUSEL
-                            if (promoBanners.isNotEmpty() && searchQuery.isBlank() && selectedCategory == null) {
+                            // 3A. PROMO BANNERS CAROUSEL (BOZOR BO'LIMI REKLAMALARI)
+                            if (bozorBanners.isNotEmpty() && searchQuery.isBlank() && selectedCategory == null) {
                                 item(span = { GridItemSpan(2) }) {
                                     PromoBannerSection(
-                                        banners = promoBanners,
+                                        banners = bozorBanners,
                                         onBannerClick = { banner ->
                                             val rawLink = banner.targetLink.trim()
                                             val link = rawLink.lowercase()
@@ -603,7 +838,13 @@ fun HomeScreen(
                                                 val catName = categories.find { it.id == selectedCategory }?.name ?: "Kategoriya"
                                                 "$catName (${products.size})"
                                             } else if (searchQuery.isNotBlank()) {
-                                                "Qidiruv natijalari (${products.size})"
+                                                if (searchResultState?.isFallback == true) {
+                                                    "Eng yaqin mos mahsulotlar (${products.size})"
+                                                } else if (searchResultState?.isAiEnhanced == true) {
+                                                    "AI qidiruv natijalari (${products.size})"
+                                                } else {
+                                                    "Qidiruv natijalari (${products.size})"
+                                                }
                                             } else {
                                                 "Bozor Mahsulotlari (${products.size})"
                                             },
@@ -679,69 +920,27 @@ fun HomeScreen(
 
                                             Spacer(modifier = Modifier.height(6.dp))
 
-                                            Text(
+                                             Text(
                                                 text = if (searchQuery.isNotBlank() || selectedCategory != null) {
                                                     "Boshqa so‘z bilan qidirib ko‘ring yoki tozalang."
                                                 } else {
-                                                    "Demo mahsulotlar olib tashlangan. Sotuvchi kabinetiga kirib, o‘z haqiqiy mahsulotlaringizni qo‘shishingiz mumkin."
+                                                    "Bozorda yangi mahsulotlar tez orada qo‘shiladi."
                                                 },
                                                 fontSize = 13.sp,
                                                 color = SlateGray,
                                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                             )
 
-                                            Spacer(modifier = Modifier.height(16.dp))
-
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                Button(
-                                                    onClick = onNavigateToSellerAuth,
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = PrimaryBurgundy,
-                                                        contentColor = Color.White
-                                                    ),
-                                                    shape = RoundedCornerShape(10.dp),
-                                                    modifier = Modifier.weight(1f).testTag("empty_state_seller_btn")
+                                            if (searchQuery.isNotBlank() || selectedCategory != null) {
+                                                Spacer(modifier = Modifier.height(14.dp))
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        storeViewModel.setSearchQuery("")
+                                                        storeViewModel.selectCategory(null)
+                                                    },
+                                                    shape = RoundedCornerShape(10.dp)
                                                 ) {
-                                                    Icon(
-                                                        imageVector = Icons.Filled.Storefront,
-                                                        contentDescription = null,
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text(
-                                                        text = "Sotuvchi Kabineti",
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color.White
-                                                    )
-                                                }
-
-                                                Button(
-                                                    onClick = onNavigateToAdminAuth,
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = Color(0xFF6D28D9),
-                                                        contentColor = Color.White
-                                                    ),
-                                                    shape = RoundedCornerShape(10.dp),
-                                                    modifier = Modifier.weight(1f).testTag("empty_state_admin_btn")
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Filled.AdminPanelSettings,
-                                                        contentDescription = null,
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text(
-                                                        text = "Admin Paneli",
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color.White
-                                                    )
+                                                    Text("Filtrni tozalash", color = PrimaryBurgundy)
                                                 }
                                             }
                                         }
@@ -790,35 +989,43 @@ fun HomeScreen(
                             foodStoreViewModel = foodStoreViewModel,
                             authViewModel = authViewModel,
                             onNavigateToFoodSellerAuth = onNavigateToFoodSellerAuth,
-                            onNavigateToFoodAdminAuth = onNavigateToFoodAdminAuth
+                            onNavigateToFoodAdminAuth = onNavigateToFoodAdminAuth,
+                            promoBanners = promoBanners,
+                            onBack = { ecosystemViewModel.setTab(EcosystemTab.HOME_HUB) }
                         )
                     }
 
                     EcosystemTab.JOBS -> {
                         GagarinJobsScreen(
                             ecosystemViewModel = ecosystemViewModel,
-                            authViewModel = authViewModel
+                            authViewModel = authViewModel,
+                            promoBanners = promoBanners,
+                            onBack = { ecosystemViewModel.setTab(EcosystemTab.HOME_HUB) }
                         )
                     }
 
                     EcosystemTab.SERVICES -> {
                         GagarinServicesScreen(
                             ecosystemViewModel = ecosystemViewModel,
-                            authViewModel = authViewModel
+                            authViewModel = authViewModel,
+                            promoBanners = promoBanners,
+                            onBack = { ecosystemViewModel.setTab(EcosystemTab.HOME_HUB) }
                         )
                     }
 
                     EcosystemTab.ADS -> {
                         GagarinAdsScreen(
                             ecosystemViewModel = ecosystemViewModel,
-                            authViewModel = authViewModel
+                            authViewModel = authViewModel,
+                            promoBanners = promoBanners,
+                            onBack = { ecosystemViewModel.setTab(EcosystemTab.HOME_HUB) }
                         )
                     }
                 }
             }
         }
 
-        // 4. PORTAL SWITCHER BOTTOM SHEET
+        // 4. PORTAL SWITCHER BOTTOM SHEET (Opened when Gagarin Go logo/brand is clicked)
         if (showPortalSelector) {
             ModalBottomSheet(
                 onDismissRequest = { showPortalSelector = false },
@@ -828,129 +1035,193 @@ fun HomeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
                 ) {
-                    Text(
-                        text = "Gagarin Go Xizmatlar Paneli",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 18.sp
-                        ),
-                        color = SecondaryNavy,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    ) {
+                        GagarinGoLogo(size = 32.dp, tint = PrimaryBurgundy)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Gagarin Go Boshqaruv",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 18.sp
+                                ),
+                                color = DarkText
+                            )
+                            Text(
+                                text = "Kerakli boshqaruv kabinetiga o‘ting",
+                                fontSize = 12.sp,
+                                color = SecondaryText
+                            )
+                        }
+                    }
 
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // 1. Sotuvchi Kabineti (Bozor)
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         color = SurfaceSubtle,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
                             .clickable {
                                 showPortalSelector = false
                                 onNavigateToSellerAuth()
                             }
-                            .padding(vertical = 4.dp)
+                            .testTag("portal_sheet_seller")
                     ) {
                         Row(
                             modifier = Modifier.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.Storefront,
-                                contentDescription = null,
-                                tint = PrimaryBurgundy,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = "Sotuvchi Kabineti (Bozor)",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SecondaryNavy
-                                )
-                                Text(
-                                    text = "Mahsulotlar va buyurtmalarni boshqarish",
-                                    fontSize = 12.sp,
-                                    color = SlateGray
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .background(PrimaryBurgundyLight, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Storefront,
+                                    contentDescription = null,
+                                    tint = PrimaryBurgundy,
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Sotuvchi Kabineti",
+                                    fontSize = 14.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = DarkText
+                                )
+                                Text(
+                                    text = "Bozor do‘koni va mahsulotlarni boshqarish",
+                                    fontSize = 12.sp,
+                                    color = SecondaryText
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Filled.ChevronRight,
+                                contentDescription = null,
+                                tint = SecondaryText,
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // 2. Taomlar Oshxona Kabineti
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         color = SurfaceSubtle,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
                             .clickable {
                                 showPortalSelector = false
                                 onNavigateToFoodSellerAuth()
                             }
-                            .padding(vertical = 4.dp)
+                            .testTag("portal_sheet_food_seller")
                     ) {
                         Row(
                             modifier = Modifier.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Outlined.ShoppingBag,
-                                contentDescription = null,
-                                tint = Color(0xFFEA580C),
-                                modifier = Modifier.size(24.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .background(Color(0xFFFFEDD5), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ShoppingBag,
+                                    contentDescription = null,
+                                    tint = Color(0xFFEA580C),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                             Spacer(modifier = Modifier.width(12.dp))
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Oshxona / Kafe Kabineti (Gagarin Taomlar)",
-                                    fontSize = 14.sp,
+                                    text = "Oshxona / Kafe Kabineti",
+                                    fontSize = 14.5.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = SecondaryNavy
+                                    color = DarkText
                                 )
                                 Text(
                                     text = "Taomlar menyusi va yetkazish buyurtmalari",
                                     fontSize = 12.sp,
-                                    color = SlateGray
+                                    color = SecondaryText
                                 )
                             }
+                            Icon(
+                                imageVector = Icons.Filled.ChevronRight,
+                                contentDescription = null,
+                                tint = SecondaryText,
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // 3. Admin Paneli
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         color = SurfaceSubtle,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
                             .clickable {
                                 showPortalSelector = false
                                 onNavigateToAdminAuth()
                             }
-                            .padding(vertical = 4.dp)
+                            .testTag("portal_sheet_admin")
                     ) {
                         Row(
                             modifier = Modifier.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.AdminPanelSettings,
-                                contentDescription = null,
-                                tint = DarkBurgundy,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = "Umumiy Admin Paneli",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SecondaryNavy
-                                )
-                                Text(
-                                    text = "Bozor, foydalanuvchilar va tizim nazorati",
-                                    fontSize = 12.sp,
-                                    color = SlateGray
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .background(Color(0xFFEDE9FE), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.AdminPanelSettings,
+                                    contentDescription = null,
+                                    tint = Color(0xFF6D28D9),
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Bosh Admin Paneli",
+                                    fontSize = 14.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = DarkText
+                                )
+                                Text(
+                                    text = "Foydalanuvchilar, do‘konlar va tizim nazorati",
+                                    fontSize = 12.sp,
+                                    color = SecondaryText
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Filled.ChevronRight,
+                                contentDescription = null,
+                                tint = SecondaryText,
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                     }
 
@@ -1080,6 +1351,227 @@ fun HomeScreen(
                         TextButton(onClick = { selectedBannerDetails = null }) {
                             Text("Yopish", color = SlateGray)
                         }
+                    }
+                }
+            )
+        }
+
+        // 6. GPS PROMPT DIALOG (When GPS is disabled)
+        if (showGpsPromptDialog) {
+            AlertDialog(
+                onDismissRequest = { showGpsPromptDialog = false },
+                shape = RoundedCornerShape(18.dp),
+                containerColor = CardSurface,
+                icon = {
+                    Icon(
+                        imageVector = Icons.Filled.LocationOff,
+                        contentDescription = null,
+                        tint = Color(0xFFC2410C),
+                        modifier = Modifier.size(36.dp)
+                    )
+                },
+                title = {
+                    Text(
+                        text = "GPS joylashuvni yoqing",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = DarkText
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Aniq yetkazib berish va Gagarin bo‘yicha joylashuvingizni avtomatik aniqlash uchun qurilma GPS xizmatini yoqing.",
+                        fontSize = 13.5.sp,
+                        color = SecondaryText,
+                        lineHeight = 19.sp
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showGpsPromptDialog = false
+                            locationMgr.openLocationSettings()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBurgundy),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("GPS ni yoqish", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showGpsPromptDialog = false
+                            manualLocationInput = currentAddress
+                            showLocationEditDialog = true
+                        }
+                    ) {
+                        Text("Qo‘lda kiritish", color = SecondaryText)
+                    }
+                }
+            )
+        }
+
+        // 7. LOCATION EDIT & GPS REFRESH DIALOG
+        if (showLocationEditDialog) {
+            AlertDialog(
+                onDismissRequest = { showLocationEditDialog = false },
+                shape = RoundedCornerShape(18.dp),
+                containerColor = CardSurface,
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.LocationOn,
+                            contentDescription = null,
+                            tint = PrimaryBurgundy,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Yetkazish manzili",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
+                            color = DarkText
+                        )
+                    }
+                },
+                text = {
+                    Column {
+                        // GPS status badge
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isGpsEnabled) Color(0xFFF0FDF4) else Color(0xFFFFF7ED),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isGpsEnabled) Color(0xFFBBF7D0) else Color(0xFFFED7AA)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(
+                                            if (isGpsEnabled) Color(0xFF22C55E) else Color(0xFFF97316),
+                                            shape = CircleShape
+                                        )
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = if (isGpsEnabled) "GPS faol" else "GPS o‘chirilgan",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = if (isGpsEnabled) Color(0xFF166534) else Color(0xFF9A3412)
+                                    )
+                                    if (coordinates != null) {
+                                        Text(
+                                            text = "Koordinata: ${String.format(java.util.Locale.US, "%.4f, %.4f", coordinates!!.first, coordinates!!.second)}",
+                                            fontSize = 11.sp,
+                                            color = SecondaryText
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = "Hozirgi manzilingiz yoki ko‘changizni kiriting:",
+                            fontSize = 13.sp,
+                            color = SecondaryText
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = manualLocationInput,
+                            onValueChange = { manualLocationInput = it },
+                            placeholder = { Text("Masalan: Gagarin sh., Navoiy ko'chasi, 14") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryBurgundy,
+                                unfocusedBorderColor = BorderColor
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        if (isGpsEnabled) {
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        locationMgr.fetchCurrentLocation(forceHighAccuracy = true)
+                                        showLocationEditDialog = false
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFDF2F4)),
+                                border = BorderStroke(1.dp, PrimaryBurgundy),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.MyLocation,
+                                    contentDescription = null,
+                                    tint = PrimaryBurgundy,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "GPS orqali qayta aniqlash",
+                                    color = PrimaryBurgundy,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        } else {
+                            Button(
+                                onClick = {
+                                    showLocationEditDialog = false
+                                    locationMgr.openLocationSettings()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFF7ED)),
+                                border = BorderStroke(1.dp, Color(0xFFEA580C)),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.LocationOff,
+                                    contentDescription = null,
+                                    tint = Color(0xFFEA580C),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "GPS sozlamalarini ochish",
+                                    color = Color(0xFFEA580C),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (manualLocationInput.isNotBlank()) {
+                                locationMgr.setManualAddress(manualLocationInput.trim())
+                            }
+                            showLocationEditDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBurgundy),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Saqlash", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLocationEditDialog = false }) {
+                        Text("Bekor qilish", color = SecondaryText)
                     }
                 }
             )

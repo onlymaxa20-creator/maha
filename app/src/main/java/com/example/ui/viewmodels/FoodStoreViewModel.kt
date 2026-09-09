@@ -218,6 +218,21 @@ class FoodStoreViewModel(
         return result
     }
 
+    /**
+     * Cancels food order placed by customer.
+     * Allowed only before status reaches "YETKAZILMOQDA".
+     */
+    fun cancelFoodOrder(orderId: Long, onResult: (Boolean, String) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            val result = foodRepository.cancelFoodOrderByCustomer(orderId)
+            result.onSuccess {
+                onResult(true, "Taom buyurtmasi muvaffaqiyatli bekor qilindi")
+            }.onFailure { error ->
+                onResult(false, error.message ?: "Buyurtmani bekor qilishda xatolik yuz berdi")
+            }
+        }
+    }
+
     suspend fun submitReview(
         orderId: Long,
         userId: Long,

@@ -29,6 +29,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
@@ -62,6 +63,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -92,6 +94,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.example.data.local.entity.ClassifiedAdEntity
+import com.example.data.local.entity.PromoBannerEntity
+import com.example.ui.components.PromoBannerSection
 import com.example.data.model.UserRole
 import com.example.data.util.AdOwnershipHelper
 import com.example.data.util.ImageStorageHelper
@@ -101,9 +105,12 @@ import com.example.ui.components.Formatters
 import com.example.ui.theme.BorderColor
 import com.example.ui.theme.CardSurface
 import com.example.ui.theme.DangerRed
+import com.example.ui.theme.DarkText
 import com.example.ui.theme.LightBackground
 import com.example.ui.theme.PrimaryBlue
+import com.example.ui.theme.PrimaryBurgundy
 import com.example.ui.theme.SecondaryNavy
+import com.example.ui.theme.SecondaryText
 import com.example.ui.theme.SlateGray
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.SurfaceSubtle
@@ -128,6 +135,8 @@ val adCategories = listOf(
 fun GagarinAdsScreen(
     ecosystemViewModel: EcosystemViewModel,
     authViewModel: AuthViewModel,
+    promoBanners: List<PromoBannerEntity> = emptyList(),
+    onBack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -602,104 +611,114 @@ fun GagarinAdsScreen(
         )
     }
 
-    Box(modifier = modifier.fillMaxSize().background(LightBackground)) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Header Banner
-            item(span = { GridItemSpan(2) }) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFFDC2626),
-                    modifier = Modifier.fillMaxWidth()
+    Scaffold(
+        topBar = {
+            Surface(
+                color = CardSurface,
+                shadowElevation = 1.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.horizontalGradient(
-                                    colors = listOf(Color(0xFFDC2626), Color(0xFFB91C1C))
-                                )
-                            )
-                            .padding(16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = Color.White.copy(alpha = 0.2f),
-                                    modifier = Modifier.padding(bottom = 6.dp)
-                                ) {
-                                    Text(
-                                        text = "📢 GAGARIN BEPUL E'LONLAR",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = Color.White,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                                Text(
-                                    text = "Oling, soting, e'lon bering!",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = "Avto, uy-joy, telefon, kiyim, chorva va xizmatlar uchun qulay maydoncha.",
-                                    fontSize = 11.sp,
-                                    color = Color.White.copy(alpha = 0.9f)
-                                )
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Button(
-                                    onClick = {
-                                        if (!session.isLoggedIn) {
-                                            showAuthPromptDialog = true
-                                        } else {
-                                            showPostAdDialog = true
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                                    shape = RoundedCornerShape(10.dp),
-                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                                    modifier = Modifier.testTag("post_ad_hero_btn")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Add,
-                                        contentDescription = null,
-                                        tint = Color(0xFFDC2626),
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "E'lon berish (Bepul)",
-                                        color = Color(0xFFDC2626),
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 12.sp
-                                    )
-                                }
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Orqaga",
+                            tint = DarkText
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Gagarin E'lonlar",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = DarkText
+                        )
+                        Text(
+                            text = "Mirzacho‘l va Gagarin bepul e'lonlari",
+                            fontSize = 12.sp,
+                            color = SecondaryText
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            if (!session.isLoggedIn) {
+                                showAuthPromptDialog = true
+                            } else {
+                                showPostAdDialog = true
                             }
-
-                            Icon(
-                                imageVector = Icons.Filled.Campaign,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.85f),
-                                modifier = Modifier.size(54.dp)
-                            )
-                        }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBurgundy),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("E'lon berish", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    if (!session.isLoggedIn) {
+                        showAuthPromptDialog = true
+                    } else {
+                        showPostAdDialog = true
+                    }
+                },
+                containerColor = PrimaryBurgundy,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.testTag("post_ad_fab")
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("E'lon berish", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+            }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        modifier = modifier.fillMaxSize()
+    ) { innerPadding ->
+        val adsBanners = remember(promoBanners) {
+            promoBanners.filter {
+                it.actionTag.equals("ADS", ignoreCase = true) ||
+                it.actionTag.equals("ALL", ignoreCase = true)
+            }
+        }
 
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            contentPadding = PaddingValues(
+                start = 14.dp,
+                end = 14.dp,
+                top = innerPadding.calculateTopPadding() + 8.dp,
+                bottom = innerPadding.calculateBottomPadding() + 80.dp
+            ),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxSize().background(LightBackground)
+        ) {
             // Search Bar for Ads
             item(span = { GridItemSpan(2) }) {
+                if (adsBanners.isNotEmpty()) {
+                    PromoBannerSection(
+                        banners = adsBanners,
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                }
+
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -708,7 +727,7 @@ fun GagarinAdsScreen(
                         Icon(
                             imageVector = Icons.Filled.Search,
                             contentDescription = "Qidirish",
-                            tint = Color(0xFFDC2626)
+                            tint = PrimaryBurgundy
                         )
                     },
                     trailingIcon = {
@@ -722,7 +741,7 @@ fun GagarinAdsScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = CardSurface,
                         unfocusedContainerColor = CardSurface,
-                        focusedBorderColor = Color(0xFFDC2626),
+                        focusedBorderColor = PrimaryBurgundy,
                         unfocusedBorderColor = BorderColor
                     ),
                     shape = RoundedCornerShape(12.dp),
@@ -740,10 +759,10 @@ fun GagarinAdsScreen(
                         val isSelected = cat == selectedCategory
                         Surface(
                             shape = RoundedCornerShape(20.dp),
-                            color = if (isSelected) Color(0xFFDC2626) else CardSurface,
+                            color = if (isSelected) PrimaryBurgundy else CardSurface,
                             border = BorderStroke(
                                 1.dp,
-                                if (isSelected) Color(0xFFDC2626) else BorderColor
+                                if (isSelected) PrimaryBurgundy else BorderColor
                             ),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
@@ -754,7 +773,7 @@ fun GagarinAdsScreen(
                                 text = cat,
                                 fontSize = 12.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) Color.White else SecondaryNavy,
+                                color = if (isSelected) Color.White else DarkText,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                             )
                         }
@@ -819,41 +838,9 @@ fun GagarinAdsScreen(
             }
 
             item(span = { GridItemSpan(2) }) {
-                Spacer(modifier = Modifier.height(70.dp))
+                Spacer(modifier = Modifier.height(20.dp))
             }
         }
-
-        // Post Ad Floating Action Button
-        FloatingActionButton(
-            onClick = {
-                if (!session.isLoggedIn) {
-                    showAuthPromptDialog = true
-                } else {
-                    showPostAdDialog = true
-                }
-            },
-            containerColor = Color(0xFFDC2626),
-            contentColor = Color.White,
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-                .testTag("post_ad_fab")
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("E'lon berish", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            }
-        }
-
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 70.dp)
-        )
     }
 }
 
@@ -874,7 +861,7 @@ fun ClassifiedAdCard(
         colors = CardDefaults.cardColors(containerColor = CardSurface),
         border = BorderStroke(
             1.dp,
-            if (isOwner) Color(0xFFDC2626).copy(alpha = 0.5f) else BorderColor
+            if (isOwner) PrimaryBurgundy.copy(alpha = 0.5f) else BorderColor
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier
@@ -901,7 +888,7 @@ fun ClassifiedAdCard(
                         contentScale = ContentScale.Crop,
                         loading = {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color(0xFFDC2626))
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = PrimaryBurgundy)
                             }
                         },
                         error = {
@@ -944,7 +931,7 @@ fun ClassifiedAdCard(
                 if (isOwner || isAdminRole) {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = if (isOwner) Color(0xFFDC2626).copy(alpha = 0.95f) else Color(0xFF6D28D9).copy(alpha = 0.95f),
+                        color = if (isOwner) PrimaryBurgundy.copy(alpha = 0.95f) else Color(0xFF6D28D9).copy(alpha = 0.95f),
                         modifier = Modifier.align(Alignment.BottomStart).padding(6.dp)
                     ) {
                         Text(
@@ -979,7 +966,7 @@ fun ClassifiedAdCard(
                     text = ad.title,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
-                    color = SecondaryNavy,
+                    color = DarkText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -995,7 +982,7 @@ fun ClassifiedAdCard(
                         text = Formatters.formatPrice(ad.price),
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 13.5.sp,
-                        color = Color(0xFFDC2626)
+                        color = PrimaryBurgundy
                     )
 
                     if (ad.isNegotiable) {

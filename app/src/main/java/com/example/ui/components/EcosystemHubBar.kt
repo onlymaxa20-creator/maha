@@ -62,48 +62,48 @@ data class EcosystemModuleItem(
 val ecosystemModules = listOf(
     EcosystemModuleItem(
         tab = EcosystemTab.BOZOR,
-        title = "BOZOR",
-        subtitle = "Gagarin onlayn do‘konlar",
+        title = "Bozor",
+        subtitle = "Onlayn do‘konlar",
         icon = Icons.Filled.ShoppingBag,
-        badge = "BOZOR",
+        badge = null,
         activeColor = Color(0xFF8B1E3F),
-        iconBgColor = Color(0xFFFCE7ED)
+        iconBgColor = Color(0xFFFDF2F4)
     ),
     EcosystemModuleItem(
         tab = EcosystemTab.FOOD,
-        title = "GAGARIN TAOMLAR",
-        subtitle = "Restoran & Kafelar",
+        title = "Taomlar",
+        subtitle = "Taom & yetkazish",
         icon = Icons.Filled.Restaurant,
-        badge = "0 SO'M",
+        badge = null,
         activeColor = Color(0xFFEA580C),
         iconBgColor = Color(0xFFFFEDD5)
     ),
     EcosystemModuleItem(
         tab = EcosystemTab.ADS,
-        title = "E'LONLAR",
-        subtitle = "Bepul e'lon joylash",
+        title = "E'lonlar",
+        subtitle = "Oldi-sotdi",
         icon = Icons.Filled.Campaign,
-        badge = "E'LON",
+        badge = null,
         activeColor = Color(0xFFDC2626),
         iconBgColor = Color(0xFFFEE2E2)
     ),
     EcosystemModuleItem(
-        tab = EcosystemTab.SERVICES,
-        title = "USTALAR",
-        subtitle = "Usta va xizmatlar",
-        icon = Icons.Filled.Handyman,
-        badge = "XIZMAT",
-        activeColor = Color(0xFF0891B2),
-        iconBgColor = Color(0xFFCFFAFE)
-    ),
-    EcosystemModuleItem(
         tab = EcosystemTab.JOBS,
-        title = "ISHLAR",
-        subtitle = "Vakansiya & ish o‘rinlari",
+        title = "Vakansiya",
+        subtitle = "Ish o‘rinlari",
         icon = Icons.Filled.Work,
-        badge = "ISH",
+        badge = null,
         activeColor = Color(0xFF059669),
         iconBgColor = Color(0xFFD1FAE5)
+    ),
+    EcosystemModuleItem(
+        tab = EcosystemTab.SERVICES,
+        title = "Xizmat ko‘rsatish",
+        subtitle = "Usta va xizmatlar",
+        icon = Icons.Filled.Handyman,
+        badge = null,
+        activeColor = Color(0xFF0891B2),
+        iconBgColor = Color(0xFFCFFAFE)
     )
 )
 

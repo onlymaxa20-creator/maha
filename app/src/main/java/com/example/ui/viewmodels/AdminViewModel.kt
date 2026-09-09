@@ -500,6 +500,7 @@ class AdminViewModel(
         endDate: Long = System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000),
         badgeText: String = "REKLAMA",
         gradientType: String = "purple",
+        actionTag: String = "",
         isActive: Boolean = true,
         onSuccess: () -> Unit = {}
     ) {
@@ -514,6 +515,7 @@ class AdminViewModel(
                 endDate = endDate,
                 badgeText = badgeText,
                 gradientType = gradientType,
+                actionTag = actionTag,
                 isActive = isActive
             )
             result.onSuccess { newId ->

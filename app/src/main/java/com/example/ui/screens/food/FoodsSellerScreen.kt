@@ -1376,6 +1376,13 @@ fun AddEditFoodProductDialog(
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "💡 Maslahat: Google Rasmlar yoki saytlardan «Rasm manzilidan nusxa olish» (Copy image address) orqali havolani qo‘yishingiz mumkin.",
+                        fontSize = 10.sp,
+                        color = SlateGray,
+                        lineHeight = 14.sp
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))

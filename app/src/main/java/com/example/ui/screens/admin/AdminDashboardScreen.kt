@@ -11,9 +11,11 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -158,6 +161,7 @@ import com.example.ui.theme.DangerRedLight
 import com.example.ui.theme.LightBackground
 import com.example.ui.theme.PrimaryBlue
 import com.example.ui.theme.PrimaryBlueLight
+import com.example.ui.theme.PrimaryBurgundy
 import com.example.ui.theme.SecondaryNavy
 import com.example.ui.theme.SlateGray
 import com.example.ui.theme.SuccessGreen
@@ -318,7 +322,7 @@ fun AdminDashboardScreen(
                 showAddBannerDialog = false
                 bannerToEdit = null
             },
-            onSave = { name, title, description, imageUrl, targetLink, startDate, endDate, badgeText, gradientType, isActive ->
+            onSave = { name, title, description, imageUrl, targetLink, startDate, endDate, badgeText, gradientType, actionTag, isActive ->
                 if (bannerToEdit == null) {
                     adminViewModel.addBanner(
                         name = name,
@@ -330,6 +334,7 @@ fun AdminDashboardScreen(
                         endDate = endDate,
                         badgeText = badgeText,
                         gradientType = gradientType,
+                        actionTag = actionTag,
                         isActive = isActive
                     ) {
                         showAddBannerDialog = false
@@ -346,6 +351,7 @@ fun AdminDashboardScreen(
                             endDate = endDate,
                             badgeText = badgeText,
                             gradientType = gradientType,
+                            actionTag = actionTag,
                             isActive = isActive
                         )
                     ) {
@@ -2170,13 +2176,13 @@ fun AdminPromoBannersTab(
         ) {
             Column {
                 Text(
-                    text = "Bosh sahifa reklamalari",
+                    text = "Ekotizim Bo‘limlari Reklamalari",
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                     color = SecondaryNavy
                 )
                 Text(
-                    text = "Jami: ${banners.size} ta reklama",
+                    text = "Jami: ${banners.size} ta reklama (har bir bo‘lim uchun alohida)",
                     fontSize = 12.sp,
                     color = SlateGray
                 )
@@ -2335,6 +2341,32 @@ fun AdminPromoBannersTab(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             // Details
+                            val moduleLabel = when (banner.actionTag.uppercase()) {
+                                "HOME" -> "🏠 Bosh sahifa"
+                                "BOZOR" -> "🛒 Bozor / Do‘konlar"
+                                "FOOD" -> "🍔 Taomlar"
+                                "ADS" -> "📢 E'lonlar"
+                                "SERVICES" -> "🛠 Ustalar / Xizmatlar"
+                                "JOBS" -> "💼 Ish / Vakansiyalar"
+                                else -> "🌐 Barcha bo‘limlar (Umumiy)"
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = "Bo‘lim: ", fontSize = 12.sp, color = SlateGray)
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color(0xFFF1F5F9)
+                                ) {
+                                    Text(
+                                        text = moduleLabel,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryBurgundy,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+
                             if (banner.name.isNotBlank() && banner.name != banner.title) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(text = "Kampaniya nomi: ", fontSize = 12.sp, color = SlateGray)
@@ -3759,6 +3791,7 @@ fun AddEditPromoBannerDialog(
         endDate: Long,
         badgeText: String,
         gradientType: String,
+        actionTag: String,
         isActive: Boolean
     ) -> Unit
 ) {
@@ -3777,6 +3810,10 @@ fun AddEditPromoBannerDialog(
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var imageValidationInfo by remember { mutableStateOf<ImageValidationResult?>(null) }
     var imageErrorMessage by remember { mutableStateOf<String?>(null) }
+
+    var selectedModule by remember(banner) {
+        mutableStateOf(if (banner?.actionTag.isNullOrBlank()) "ALL" else banner!!.actionTag.uppercase())
+    }
 
     var targetLink by remember(banner) { mutableStateOf(banner?.targetLink ?: "") }
     var durationDays by remember(banner) { mutableIntStateOf(30) }
@@ -4063,6 +4100,52 @@ fun AddEditPromoBannerDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                // Reklama qaysi bo'limda ko'rsatilishi (Modul)
+                Text(
+                    text = "Reklama ko‘rsatiladigan bo‘lim (Ekotizim):",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    color = SecondaryNavy
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                val moduleOptions = listOf(
+                    "ALL" to "🌐 Barchasi (Umumiy)",
+                    "HOME" to "🏠 Bosh sahifa",
+                    "BOZOR" to "🛒 Bozor",
+                    "FOOD" to "🍔 Taomlar",
+                    "ADS" to "📢 E'lonlar",
+                    "SERVICES" to "🛠 Ustalar",
+                    "JOBS" to "💼 Ishlar"
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    moduleOptions.forEach { (code, label) ->
+                        FilterChip(
+                            selected = selectedModule == code,
+                            onClick = { selectedModule = code },
+                            label = { 
+                                Text(
+                                    text = label, 
+                                    fontSize = 11.sp, 
+                                    fontWeight = if (selectedModule == code) FontWeight.Bold else FontWeight.Normal 
+                                ) 
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = PrimaryBurgundy,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 // Havola yoki bo'lim
                 OutlinedTextField(
                     value = targetLink,
@@ -4080,7 +4163,7 @@ fun AddEditPromoBannerDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    listOf("bozor" to "Bozor", "foods" to "Foods", "ads" to "E'lonlar", "services" to "Ustalar", "jobs" to "Ishlar").forEach { (slug, label) ->
+                    listOf("bozor" to "Bozor", "foods" to "Taomlar", "ads" to "E'lonlar", "services" to "Ustalar", "jobs" to "Ishlar").forEach { (slug, label) ->
                         FilterChip(
                             selected = targetLink == slug,
                             onClick = { targetLink = if (targetLink == slug) "" else slug },
@@ -4238,6 +4321,7 @@ fun AddEditPromoBannerDialog(
                         computedEndDate,
                         badgeText.trim().ifBlank { "REKLAMA" },
                         gradientType,
+                        selectedModule,
                         isActive
                     )
                 },

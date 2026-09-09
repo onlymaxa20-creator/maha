@@ -447,6 +447,58 @@ class FoodRepository(
         )
     }
 
+    /**
+     * Customer cancels a food order before status reaches "YETKAZILMOQDA".
+     * Allowed: "YANGI", "QABUL_QILINDI", "TAYYORLANMOQDA", "TAYYOR"
+     * Forbidden once courier picks it up ("YETKAZILMOQDA") or delivered ("YETKAZILDI")
+     */
+    suspend fun cancelFoodOrderByCustomer(orderId: Long, reason: String = "Mijoz tomonidan bekor qilindi"): Result<Unit> {
+        val order = orderDao.getOrderByIdDirect(orderId)
+            ?: return Result.failure(IllegalArgumentException("Taom buyurtmasi topilmadi"))
+
+        val statusClean = order.status.uppercase().trim()
+        if (statusClean == "YETKAZILMOQDA") {
+            return Result.failure(IllegalStateException("Taom allaqachon yo‘lga chiqqan (kuryer yetkazmoqda). Buyurtmani bekor qilib bo‘lmaydi!"))
+        }
+        if (statusClean == "YETKAZILDI") {
+            return Result.failure(IllegalStateException("Buyurtma allaqachon yetkazib berilgan."))
+        }
+        if (statusClean == "BEKOR_QILINDI") {
+            return Result.failure(IllegalStateException("Ushbu buyurtma allaqachon bekor qilingan."))
+        }
+
+        orderDao.updateOrderRejection(orderId, "BEKOR_QILINDI", reason)
+        try {
+            firestoreSyncService.updateFoodOrderStatus(orderId, "BEKOR_QILINDI")
+        } catch (_: Exception) {}
+
+        val restName = order.restaurantName.ifBlank { "Gagarin Taomlar" }
+
+        // Bildirishnoma 1: Mijozga
+        NotificationHelper.showNotification(
+            title = "❌ Taom buyurtmangiz bekor qilindi",
+            message = "Sizning #${order.id} raqamli taom buyurtmangiz ($restName) muvaffaqiyatli bekor qilindi.",
+            targetRole = "CUSTOMER",
+            targetUserId = order.userId
+        )
+
+        // Bildirishnoma 2: Oshxona xodimiga / sotuvchisiga
+        NotificationHelper.showNotification(
+            title = "⚠️ Taom buyurtmasi bekor qilindi",
+            message = "Buyurtma #${order.id} (${order.customerName}) xaridor tomonidan bekor qilindi.",
+            targetRole = "FOOD_SELLER"
+        )
+
+        _foodEvents.tryEmit(
+            LiveServerNotification(
+                title = "❌ Taom buyurtmasi bekor qilindi",
+                message = "Buyurtma #${order.id} mijoz tomonidan bekor qilindi."
+            )
+        )
+
+        return Result.success(Unit)
+    }
+
     // --- FOOD ADMIN FLOW ---
     val allRestaurants: Flow<List<FoodRestaurantEntity>> = restaurantDao.getAllRestaurants()
     val allProducts: Flow<List<FoodProductEntity>> = productDao.getAllProducts()

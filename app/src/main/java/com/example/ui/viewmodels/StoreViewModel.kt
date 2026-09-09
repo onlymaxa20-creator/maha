@@ -19,6 +19,8 @@ import com.example.data.repository.ProductRepository
 import com.example.data.repository.RecommendationRepository
 import com.example.data.repository.ReviewRepository
 import com.example.data.repository.SupportRepository
+import com.example.data.search.SemanticSearchEngine
+import com.example.data.search.SemanticSearchResult
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,18 +80,28 @@ class StoreViewModel(
             initialValue = emptyList()
         )
 
+    private val semanticSearchEngine = SemanticSearchEngine()
+
+    private val _searchResultState = MutableStateFlow<SemanticSearchResult?>(null)
+    val searchResultState: StateFlow<SemanticSearchResult?> = _searchResultState.asStateFlow()
+
     val products: StateFlow<List<ProductEntity>> = combine(
         _searchQuery,
         _selectedCategoryId,
         productRepository.getAllAvailableProducts()
     ) { query, categoryId, allProducts ->
-        allProducts.filter { product ->
-            val matchesCategory = categoryId == null || product.categoryId == categoryId
-            val matchesQuery = query.isBlank() ||
-                    product.name.contains(query, ignoreCase = true) ||
-                    product.description.contains(query, ignoreCase = true) ||
-                    product.categoryName.contains(query, ignoreCase = true)
-            matchesCategory && matchesQuery
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) {
+            _searchResultState.value = null
+            if (categoryId != null) {
+                allProducts.filter { it.categoryId == categoryId }
+            } else {
+                allProducts
+            }
+        } else {
+            val result = semanticSearchEngine.search(trimmed, allProducts, categoryId)
+            _searchResultState.value = result
+            result.products
         }
     }.stateIn(
         scope = viewModelScope,
@@ -196,6 +208,13 @@ class StoreViewModel(
                 eventType = "search",
                 searchQuery = trimmed
             )
+        }
+    }
+
+    fun applyDidYouMean() {
+        val suggestion = _searchResultState.value?.didYouMean
+        if (!suggestion.isNullOrBlank()) {
+            setSearchQuery(suggestion)
         }
     }
 
@@ -401,6 +420,21 @@ class StoreViewModel(
                 onSuccess(order)
             }.onFailure { error ->
                 _orderPlacementError.value = error.message ?: "Buyurtma qabul qilinmadi"
+            }
+        }
+    }
+
+    /**
+     * Cancels an order placed by the customer.
+     * Allowed only before order status reaches "Yetkazilmoqda".
+     */
+    fun cancelOrder(orderId: Long, onResult: (Boolean, String) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            val result = orderRepository.cancelOrderByCustomer(orderId)
+            result.onSuccess {
+                onResult(true, "Buyurtmangiz muvaffaqiyatli bekor qilindi")
+            }.onFailure { error ->
+                onResult(false, error.message ?: "Buyurtmani bekor qilishda xatolik yuz berdi")
             }
         }
     }

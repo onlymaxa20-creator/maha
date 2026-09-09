@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Business
@@ -48,6 +49,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -71,15 +73,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.entity.JobVacancyEntity
+import com.example.data.local.entity.PromoBannerEntity
+import com.example.ui.components.PromoBannerSection
 import com.example.data.model.UserRole
 import com.example.data.util.AdOwnershipHelper
 import com.example.ui.theme.BorderColor
 import com.example.ui.theme.CardSurface
 import com.example.ui.theme.DangerRed
+import com.example.ui.theme.DarkText
 import com.example.ui.theme.LightBackground
 import com.example.ui.theme.PrimaryBlue
 import com.example.ui.theme.PrimaryBlueLight
+import com.example.ui.theme.PrimaryBurgundy
 import com.example.ui.theme.SecondaryNavy
+import com.example.ui.theme.SecondaryText
 import com.example.ui.theme.SlateGray
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.SurfaceSubtle
@@ -114,6 +121,8 @@ private fun normalizePhoneNumber(phone: String?): String {
 fun GagarinJobsScreen(
     ecosystemViewModel: EcosystemViewModel,
     authViewModel: AuthViewModel,
+    promoBanners: List<PromoBannerEntity> = emptyList(),
+    onBack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -285,58 +294,110 @@ fun GagarinJobsScreen(
         )
     }
 
-    Box(modifier = modifier.fillMaxSize().background(LightBackground)) {
-        LazyColumn(
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Hero Banner
-            item {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF7C3AED),
-                    modifier = Modifier.fillMaxWidth()
+    Scaffold(
+        topBar = {
+            Surface(
+                color = CardSurface,
+                shadowElevation = 1.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = Color.White.copy(alpha = 0.2f),
-                                modifier = Modifier.padding(bottom = 6.dp)
-                            ) {
-                                Text(
-                                    text = "💼 GAGARIN ISH VA VAKANSIYALAR",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                            Text(
-                                text = "Ish toping yoki ishchi e'lon qiling!",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            Text(
-                                text = "Gagarin shahri va Mirzacho‘l bo‘ylab barcha sohadagi ish o‘rinlari.",
-                                fontSize = 11.sp,
-                                color = Color.White.copy(alpha = 0.9f)
-                            )
-                        }
-
+                    IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.Filled.Work,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(44.dp)
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Orqaga",
+                            tint = DarkText
                         )
                     }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Gagarin Vakansiyalar",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = DarkText
+                        )
+                        Text(
+                            text = "Ish o‘rinlari va xodimlar",
+                            fontSize = 12.sp,
+                            color = SecondaryText
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            if (!session.isLoggedIn) {
+                                showAuthPromptDialog = true
+                            } else {
+                                showPostJobDialog = true
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBurgundy),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Vakansiya", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    if (!session.isLoggedIn) {
+                        showAuthPromptDialog = true
+                    } else {
+                        showPostJobDialog = true
+                    }
+                },
+                containerColor = PrimaryBurgundy,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.testTag("post_job_fab")
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "Vakansiya qo‘shish")
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Vakansiya qo‘shish", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+            }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        modifier = modifier.fillMaxSize()
+    ) { innerPadding ->
+        val jobsBanners = remember(promoBanners) {
+            promoBanners.filter {
+                it.actionTag.equals("JOBS", ignoreCase = true) ||
+                it.actionTag.equals("ALL", ignoreCase = true)
+            }
+        }
+
+        LazyColumn(
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = innerPadding.calculateTopPadding() + 8.dp,
+                bottom = innerPadding.calculateBottomPadding() + 80.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize().background(LightBackground)
+        ) {
+            // Reklama bannerlari (Admin boshqaruvidagi Ish/Vakansiyalar bo'limi reklamalari)
+            if (jobsBanners.isNotEmpty()) {
+                item {
+                    PromoBannerSection(
+                        banners = jobsBanners,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
                 }
             }
 
@@ -350,10 +411,10 @@ fun GagarinJobsScreen(
                         val isSelected = cat == selectedCategory
                         Surface(
                             shape = RoundedCornerShape(20.dp),
-                            color = if (isSelected) Color(0xFF7C3AED) else CardSurface,
+                            color = if (isSelected) PrimaryBurgundy else CardSurface,
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
-                                if (isSelected) Color(0xFF7C3AED) else BorderColor
+                                if (isSelected) PrimaryBurgundy else BorderColor
                             ),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
@@ -364,7 +425,7 @@ fun GagarinJobsScreen(
                                 text = cat,
                                 fontSize = 12.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) Color.White else SecondaryNavy,
+                                color = if (isSelected) Color.White else DarkText,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                             )
                         }
@@ -407,41 +468,9 @@ fun GagarinJobsScreen(
             }
 
             item {
-                Spacer(modifier = Modifier.height(60.dp))
+                Spacer(modifier = Modifier.height(20.dp))
             }
         }
-
-        // Post Job Floating Action Button
-        FloatingActionButton(
-            onClick = {
-                if (!session.isLoggedIn) {
-                    showAuthPromptDialog = true
-                } else {
-                    showPostJobDialog = true
-                }
-            },
-            containerColor = Color(0xFF7C3AED),
-            contentColor = Color.White,
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-                .testTag("post_job_fab")
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Vakansiya qo‘shish")
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Vakansiya qo‘shish", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            }
-        }
-
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 70.dp)
-        )
     }
 }
 
@@ -472,7 +501,7 @@ fun JobCardItem(
                         text = job.title,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
-                        color = SecondaryNavy
+                        color = DarkText
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -493,7 +522,7 @@ fun JobCardItem(
                             Icon(
                                 imageVector = Icons.Filled.Edit,
                                 contentDescription = "Tahrirlash",
-                                tint = Color(0xFF7C3AED),
+                                tint = PrimaryBurgundy,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -514,14 +543,14 @@ fun JobCardItem(
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF7C3AED).copy(alpha = 0.12f),
+                        color = PrimaryBurgundy.copy(alpha = 0.12f),
                         modifier = Modifier.padding(start = 4.dp)
                     ) {
                         Text(
                             text = job.jobType,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF7C3AED),
+                            color = PrimaryBurgundy,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
@@ -555,7 +584,7 @@ fun JobCardItem(
                 Text(
                     text = job.description,
                     fontSize = 12.sp,
-                    color = SecondaryNavy.copy(alpha = 0.85f),
+                    color = DarkText.copy(alpha = 0.85f),
                     lineHeight = 16.sp
                 )
                 Spacer(modifier = Modifier.height(6.dp))
@@ -563,7 +592,7 @@ fun JobCardItem(
 
             if (job.requirements.isNotBlank()) {
                 Row(verticalAlignment = Alignment.Top) {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Color(0xFF7C3AED), modifier = Modifier.size(14.dp).padding(top = 2.dp))
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = PrimaryBurgundy, modifier = Modifier.size(14.dp).padding(top = 2.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "Talablar: ${job.requirements}",
@@ -748,7 +777,7 @@ fun PostJobVacancyDialog(
                 onClick = {
                     onSubmit(title, company, selectedCat, salary, selectedType, location, phone, contactPerson, requirements, description)
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBurgundy),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.testTag("submit_job_btn")
             ) {

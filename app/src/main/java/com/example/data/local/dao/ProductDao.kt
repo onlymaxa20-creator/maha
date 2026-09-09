@@ -74,6 +74,9 @@ interface ProductDao {
     @Query("UPDATE products SET stock = :stock WHERE id = :productId")
     suspend fun updateStock(productId: Long, stock: Int)
 
+    @Query("UPDATE products SET stock = stock + :quantity, isAvailable = 1 WHERE id = :productId")
+    suspend fun increaseStock(productId: Long, quantity: Int)
+
     @Query("UPDATE products SET isAvailable = :isAvailable WHERE id = :productId")
     suspend fun updateAvailability(productId: Long, isAvailable: Boolean)
 }

@@ -96,6 +96,7 @@ import com.example.ui.theme.LightBackground
 import com.example.ui.theme.PrimaryBlue
 import com.example.ui.theme.PrimaryBlueLight
 import com.example.ui.theme.PrimaryBurgundy
+import com.example.ui.theme.PrimaryBurgundyLight
 import com.example.ui.theme.SecondaryNavy
 import com.example.ui.theme.SecondaryText
 import com.example.ui.theme.SlateGray
@@ -177,6 +178,7 @@ fun MainAppNavigation(
 
     val screenBackStack = remember { mutableListOf<AppScreen>() }
     val bottomTabBackStack = remember { mutableListOf<Int>() }
+    var profileInitialTab by remember { mutableIntStateOf(0) }
 
     fun navigateToScreen(screen: AppScreen) {
         if (currentScreen != screen) {
@@ -350,11 +352,11 @@ fun MainAppNavigation(
                                             )
                                         },
                                         colors = NavigationBarItemDefaults.colors(
-                                            selectedIconColor = PrimaryBlue,
-                                            selectedTextColor = PrimaryBlue,
+                                            selectedIconColor = PrimaryBurgundy,
+                                            selectedTextColor = PrimaryBurgundy,
                                             unselectedIconColor = SecondaryText,
                                             unselectedTextColor = SecondaryText,
-                                            indicatorColor = PrimaryBlueLight
+                                            indicatorColor = PrimaryBurgundyLight
                                         ),
                                         modifier = Modifier.testTag(item.testTag)
                                     )
@@ -418,6 +420,7 @@ fun MainAppNavigation(
                                 authViewModel = authViewModel,
                                 onNavigateToAuth = { navigateToScreen(AppScreen.CUSTOMER_AUTH) },
                                 onOrderPlaced = {
+                                    profileInitialTab = 1
                                     selectTab(4)
                                 },
                                 onExploreProducts = { selectTab(0) },
@@ -451,6 +454,7 @@ fun MainAppNavigation(
                                         navigateToScreen(AppScreen.ADMIN_AUTH)
                                     }
                                 },
+                                initialTab = profileInitialTab,
                                 modifier = Modifier.padding(innerPadding)
                             )
                         }

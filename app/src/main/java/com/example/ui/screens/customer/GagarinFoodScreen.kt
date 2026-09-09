@@ -93,19 +93,22 @@ import coil.compose.SubcomposeAsyncImage
 import com.example.data.local.entity.FoodOrderEntity
 import com.example.data.local.entity.FoodProductEntity
 import com.example.data.local.entity.FoodRestaurantEntity
+import com.example.data.local.entity.PromoBannerEntity
 import com.example.ui.components.FoodCategoryVisualCard
+import com.example.ui.components.PromoBannerSection
 import com.example.data.util.ImageStorageHelper
 import com.example.data.util.LocationStorageHelper
 import com.example.ui.components.map.BurgundyRed
 import com.example.ui.components.map.DeliveryMapPickerSheet
 import com.example.ui.components.map.OrderLocationSection
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Place
 import com.example.ui.theme.CardSurface
+import com.example.ui.theme.DarkText
 import com.example.ui.theme.LightBackground
-import com.example.ui.theme.OrangeAmber
-import com.example.ui.theme.PrimaryBlue
-import com.example.ui.theme.SecondaryNavy
+import com.example.ui.theme.PrimaryBurgundy
+import com.example.ui.theme.SecondaryText
 import com.example.ui.theme.SlateGray
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.viewmodels.AuthViewModel
@@ -121,6 +124,8 @@ fun GagarinFoodScreen(
     authViewModel: AuthViewModel,
     onNavigateToFoodSellerAuth: () -> Unit,
     onNavigateToFoodAdminAuth: () -> Unit,
+    promoBanners: List<PromoBannerEntity> = emptyList(),
+    onBack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val currentSession by authViewModel.session.collectAsState()
@@ -149,22 +154,42 @@ fun GagarinFoodScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Orqaga",
+                            tint = PrimaryBurgundy
+                        )
+                    }
+                },
                 title = {
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🍔", fontSize = 18.sp)
-                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Gagarin Taomlar",
-                                fontWeight = FontWeight.Black,
-                                fontSize = 19.sp,
-                                color = SecondaryNavy
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = DarkText
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = Color(0xFFFDF2F4),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    text = "Oshxona",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryBurgundy,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
                         }
                         Text(
                             text = "100% Bepul Yetkazib Berish • Naqd Pul",
                             fontSize = 11.sp,
-                            color = SuccessGreen,
+                            color = PrimaryBurgundy,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -177,7 +202,7 @@ fun GagarinFoodScreen(
                         Icon(
                             imageVector = Icons.Default.History,
                             contentDescription = "Buyurtmalar tarixi",
-                            tint = SecondaryNavy
+                            tint = PrimaryBurgundy
                         )
                     }
                     IconButton(
@@ -187,7 +212,7 @@ fun GagarinFoodScreen(
                         Icon(
                             imageVector = Icons.Default.Store,
                             contentDescription = "Oshxona kabineti",
-                            tint = OrangeAmber
+                            tint = PrimaryBurgundy
                         )
                     }
                     IconButton(
@@ -197,13 +222,13 @@ fun GagarinFoodScreen(
                         Icon(
                             imageVector = Icons.Default.AdminPanelSettings,
                             contentDescription = "Food Admin",
-                            tint = SecondaryNavy
+                            tint = DarkText
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = CardSurface,
-                    titleContentColor = SecondaryNavy
+                    titleContentColor = DarkText
                 )
             )
         },
@@ -211,13 +236,13 @@ fun GagarinFoodScreen(
             if (cartItems.isNotEmpty()) {
                 FloatingActionButton(
                     onClick = { showCartSheet = true },
-                    containerColor = OrangeAmber,
+                    containerColor = PrimaryBurgundy,
                     contentColor = Color.White,
                     modifier = Modifier.testTag("food_cart_fab")
                 ) {
                     BadgedBox(
                         badge = {
-                            Badge(containerColor = Color.White, contentColor = OrangeAmber) {
+                            Badge(containerColor = Color.White, contentColor = PrimaryBurgundy) {
                                 Text("${cartItems.sumOf { it.quantity }}")
                             }
                         }
@@ -254,7 +279,7 @@ fun GagarinFoodScreen(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = CardSurface,
                     unfocusedContainerColor = CardSurface,
-                    focusedBorderColor = OrangeAmber,
+                    focusedBorderColor = PrimaryBurgundy,
                     unfocusedBorderColor = Color(0xFFE0E0E0)
                 ),
                 modifier = Modifier
@@ -263,6 +288,13 @@ fun GagarinFoodScreen(
                     .testTag("food_search_input")
             )
 
+            val foodModuleBanners = remember(promoBanners) {
+                promoBanners.filter {
+                    it.actionTag.equals("FOOD", ignoreCase = true) ||
+                    it.actionTag.equals("ALL", ignoreCase = true)
+                }
+            }
+
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 contentPadding = PaddingValues(16.dp),
@@ -270,53 +302,15 @@ fun GagarinFoodScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                // Promotional / Delivery Banner
-                item(span = { GridItemSpan(2) }) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = OrangeAmber),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Surface(
-                                    color = Color.White.copy(alpha = 0.25f),
-                                    shape = RoundedCornerShape(6.dp)
-                                ) {
-                                    Text(
-                                        text = "100% BEPUL YETKAZISH",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "Gagarin bo‘ylab eng mazali taomlar!",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp
-                                )
-                                Text(
-                                    text = "To‘lov faqat naqd pul orqali qabul qilinadi",
-                                    color = Color.White.copy(alpha = 0.9f),
-                                    fontSize = 12.sp
-                                )
-                            }
-                            Text(text = "🍔", fontSize = 42.sp)
-                        }
+                // Reklama bannerlari (Admin boshqaruvidagi Taomlar bo'limi reklamalari)
+                if (foodModuleBanners.isNotEmpty()) {
+                    item(span = { GridItemSpan(2) }) {
+                        PromoBannerSection(
+                            banners = foodModuleBanners,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
                     }
-                }
-
-                // Custom Banners from Admin if any
-                if (banners.isNotEmpty()) {
+                } else if (banners.isNotEmpty()) {
                     item(span = { GridItemSpan(2) }) {
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -324,7 +318,7 @@ fun GagarinFoodScreen(
                         ) {
                             items(banners, key = { it.id }) { banner ->
                                 Card(
-                                    colors = CardDefaults.cardColors(containerColor = SecondaryNavy),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF991B1B)),
                                     shape = RoundedCornerShape(14.dp),
                                     modifier = Modifier.width(280.dp)
                                 ) {
@@ -333,7 +327,7 @@ fun GagarinFoodScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Text(banner.badgeText, color = OrangeAmber, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            Text(banner.badgeText, color = Color(0xFFFFCDD2), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                             Text(banner.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                             if (banner.description.isNotBlank()) {
                                                 Text(banner.description, color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
@@ -360,7 +354,7 @@ fun GagarinFoodScreen(
                                 text = "Taom Toifalari",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
-                                color = SecondaryNavy
+                                color = DarkText
                             )
                         }
                         LazyRow(
@@ -405,12 +399,12 @@ fun GagarinFoodScreen(
                                         text = "Oshxona va Restoranlar",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp,
-                                        color = SecondaryNavy
+                                        color = DarkText
                                     )
                                 }
                                 if (selectedRestaurantId != null) {
                                     TextButton(onClick = { foodStoreViewModel.selectRestaurant(null) }) {
-                                        Text("Filtrni tozalash", fontSize = 12.sp, color = OrangeAmber)
+                                        Text("Filtrni tozalash", fontSize = 12.sp, color = PrimaryBurgundy)
                                     }
                                 }
                             }
@@ -422,10 +416,10 @@ fun GagarinFoodScreen(
                                     val isSelected = selectedRestaurantId == rest.id
                                     Card(
                                         colors = CardDefaults.cardColors(
-                                            containerColor = if (isSelected) Color(0xFFFFF3E0) else CardSurface
+                                            containerColor = if (isSelected) Color(0xFFFDF2F4) else CardSurface
                                         ),
                                         shape = RoundedCornerShape(12.dp),
-                                        border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, OrangeAmber) else null,
+                                        border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, PrimaryBurgundy) else null,
                                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                                         modifier = Modifier
                                             .width(170.dp)
@@ -444,7 +438,7 @@ fun GagarinFoodScreen(
                                                     fontSize = 13.sp,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis,
-                                                    color = SecondaryNavy
+                                                    color = DarkText
                                                 )
                                             }
                                             Spacer(modifier = Modifier.height(4.dp))
@@ -480,7 +474,7 @@ fun GagarinFoodScreen(
                             text = "Mazali Taomlar Menyusi",
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
-                            color = SecondaryNavy
+                            color = DarkText
                         )
                     }
                 }
@@ -501,7 +495,7 @@ fun GagarinFoodScreen(
                                     "Hozircha taomlar mavjud emas",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = SecondaryNavy
+                                    color = DarkText
                                 )
                                 Text(
                                     "Oshxona egasi sifatida kirib menyuni to‘ldiring",
@@ -512,7 +506,7 @@ fun GagarinFoodScreen(
                                 Spacer(modifier = Modifier.height(14.dp))
                                 Button(
                                     onClick = onNavigateToFoodSellerAuth,
-                                    colors = ButtonDefaults.buttonColors(containerColor = OrangeAmber),
+                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBurgundy),
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
                                     Text("Oshxona qo‘shish / Kirish")
@@ -553,7 +547,7 @@ fun GagarinFoodScreen(
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     CircularProgressIndicator(
-                                                        color = OrangeAmber,
+                                                        color = PrimaryBurgundy,
                                                         modifier = Modifier.size(20.dp),
                                                         strokeWidth = 2.dp
                                                     )
@@ -567,7 +561,7 @@ fun GagarinFoodScreen(
                                         Text("🍲", fontSize = 40.sp)
                                     }
                                     Surface(
-                                        color = SuccessGreen,
+                                        color = PrimaryBurgundy,
                                         shape = RoundedCornerShape(topStart = 0.dp, bottomStart = 8.dp, topEnd = 0.dp, bottomEnd = 0.dp),
                                         modifier = Modifier.align(Alignment.TopEnd)
                                     ) {
@@ -586,7 +580,7 @@ fun GagarinFoodScreen(
                                         text = product.name,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp,
-                                        color = SecondaryNavy,
+                                        color = DarkText,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -601,14 +595,14 @@ fun GagarinFoodScreen(
                                         text = "${formatter.format(product.price.toLong())} so‘m",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
-                                        color = OrangeAmber
+                                        color = PrimaryBurgundy
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Button(
                                         onClick = {
                                             foodStoreViewModel.addToCart(product, 1)
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = OrangeAmber),
+                                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBurgundy),
                                         shape = RoundedCornerShape(8.dp),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                         modifier = Modifier
@@ -645,7 +639,7 @@ fun GagarinFoodScreen(
                             foodStoreViewModel.clearCart()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = OrangeAmber)
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBurgundy)
                 ) {
                     Text("Savatni tozalab qo‘shish")
                 }
@@ -666,7 +660,7 @@ fun GagarinFoodScreen(
         AlertDialog(
             onDismissRequest = { selectedProductDetail = null },
             title = {
-                Text(prod.name, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = SecondaryNavy)
+                Text(prod.name, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DarkText)
             },
             text = {
                 Column(
@@ -691,7 +685,7 @@ fun GagarinFoodScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     CircularProgressIndicator(
-                                        color = OrangeAmber,
+                                        color = PrimaryBurgundy,
                                         modifier = Modifier.size(24.dp),
                                         strokeWidth = 2.dp
                                     )
@@ -710,11 +704,11 @@ fun GagarinFoodScreen(
                             }
                         )
                     }
-                    Text("Oshxona: ${prod.restaurantName}", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = SecondaryNavy)
+                    Text("Oshxona: ${prod.restaurantName}", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DarkText)
                     Text("Kategoriya: ${prod.categoryName}", fontSize = 13.sp, color = SlateGray)
                     Text("Tayyorlash vaqti: ${prod.preparationTime}", fontSize = 13.sp, color = SlateGray)
                     if (prod.ingredients.isNotBlank()) {
-                        Text("Tarkibi: ${prod.ingredients}", fontSize = 13.sp, color = SecondaryNavy)
+                        Text("Tarkibi: ${prod.ingredients}", fontSize = 13.sp, color = DarkText)
                     }
                     if (prod.description.isNotBlank()) {
                         Text(prod.description, fontSize = 12.sp, color = SlateGray)
@@ -725,7 +719,7 @@ fun GagarinFoodScreen(
                         "Narxi: ${formatter.format(prod.price.toLong())} so‘m",
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
-                        color = OrangeAmber
+                        color = PrimaryBurgundy
                     )
 
                     Surface(
@@ -763,7 +757,7 @@ fun GagarinFoodScreen(
                         foodStoreViewModel.addToCart(prod, quantity)
                         selectedProductDetail = null
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = OrangeAmber)
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBurgundy)
                 ) {
                     Text("Savatga qo‘shish (${formatter.format((prod.price * quantity).toLong())} so‘m)")
                 }
@@ -794,7 +788,7 @@ fun GagarinFoodScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Taom Savati", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = SecondaryNavy)
+                    Text("Taom Savati", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DarkText)
                     TextButton(onClick = { foodStoreViewModel.clearCart() }) {
                         Text("Tozalash", color = Color.Red, fontSize = 13.sp)
                     }
@@ -804,7 +798,7 @@ fun GagarinFoodScreen(
                     Text(
                         text = "Oshxona: ${cartItems.first().product.restaurantName}",
                         fontWeight = FontWeight.SemiBold,
-                        color = OrangeAmber,
+                        color = PrimaryBurgundy,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
@@ -826,7 +820,7 @@ fun GagarinFoodScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(item.product.name, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SecondaryNavy)
+                                Text(item.product.name, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DarkText)
                                 Text("${formatter.format(item.product.price.toLong())} so‘m", fontSize = 12.sp, color = SlateGray)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -856,7 +850,7 @@ fun GagarinFoodScreen(
                         }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("To‘lov turi:", fontSize = 13.sp, color = SlateGray)
-                            Text("NAQD PUL", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SecondaryNavy)
+                            Text("NAQD PUL", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = DarkText)
                         }
                     }
                 }
@@ -868,7 +862,7 @@ fun GagarinFoodScreen(
                         showCartSheet = false
                         showCheckoutDialog = true
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = OrangeAmber),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBurgundy),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -975,7 +969,7 @@ fun GagarinFoodScreen(
                                         text = "Xaritada manzilni belgilash",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp,
-                                        color = SecondaryNavy
+                                        color = DarkText
                                     )
                                     Text(
                                         text = String.format(
@@ -1019,14 +1013,14 @@ fun GagarinFoodScreen(
                     )
 
                     Surface(
-                        color = Color(0xFFFFF3E0),
+                        color = Color(0xFFFDF2F4),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
-                            Text("To‘lov: ${formatter.format(cartTotal.toLong())} so‘m", fontWeight = FontWeight.Bold, color = OrangeAmber, fontSize = 14.sp)
+                            Text("To‘lov: ${formatter.format(cartTotal.toLong())} so‘m", fontWeight = FontWeight.Bold, color = PrimaryBurgundy, fontSize = 14.sp)
                             Text("Yetkazib berish: 100% BEPUL", color = SuccessGreen, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            Text("To‘lov usuli: Taom yetib borganda NAQD PUL", fontSize = 12.sp, color = SecondaryNavy)
+                            Text("To‘lov usuli: Taom yetib borganda NAQD PUL", fontSize = 12.sp, color = DarkText)
                         }
                     }
                 }
@@ -1059,7 +1053,7 @@ fun GagarinFoodScreen(
                         }
                     },
                     enabled = !isPlacing && customerPhone.length >= 9 && deliveryAddress.length >= 3,
-                    colors = ButtonDefaults.buttonColors(containerColor = OrangeAmber)
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBurgundy)
                 ) {
                     if (isPlacing) {
                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
@@ -1106,12 +1100,12 @@ fun GagarinFoodScreen(
                                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text("Buyurtma #${ord.id}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                        Text(ord.status.replace("_", " "), color = OrangeAmber, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Text(ord.status.replace("_", " "), color = PrimaryBurgundy, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     }
-                                    Text("Oshxona: ${ord.restaurantName}", fontSize = 12.sp, color = SecondaryNavy)
+                                    Text("Oshxona: ${ord.restaurantName}", fontSize = 12.sp, color = DarkText)
                                     Text(ord.itemsSummary, fontSize = 12.sp, color = SlateGray)
-                                    Text("Manzil: ${ord.deliveryAddress}", fontSize = 11.sp, color = SecondaryNavy)
-                                    Text("Jami: ${formatter.format(ord.totalPrice.toLong())} so‘m (Naqd)", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = OrangeAmber)
+                                    Text("Manzil: ${ord.deliveryAddress}", fontSize = 11.sp, color = DarkText)
+                                    Text("Jami: ${formatter.format(ord.totalPrice.toLong())} so‘m (Naqd)", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = PrimaryBurgundy)
 
                                     if (ord.deliveryLatitude != 0.0 && ord.deliveryLongitude != 0.0) {
                                         Spacer(modifier = Modifier.height(4.dp))
